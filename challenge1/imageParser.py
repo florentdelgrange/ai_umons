@@ -68,7 +68,15 @@ def create_directories_all():
     if not os.path.exists("sorted_faces/valid/all"):
         os.makedirs("sorted_faces/valid/all")
 
-
+    if not os.path.exists("weights"):
+        os.makedirs("weights")
+        with open("weights/weights.h5", 'w'):
+            pass
+        with open("weights/weights_ft_tmp.h5", 'w'):
+            pass
+        with open("weights/weights_tl_tmp.h5", 'w'):
+            pass
+        
 def parse(filename, root_directory, training_size):
     """
     Goes trough a data description file and sorts the data into a training
