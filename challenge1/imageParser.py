@@ -26,6 +26,15 @@ def create_directories():
     if not os.path.exists("sorted_faces/valid/men"):
         os.makedirs("sorted_faces/valid/men")
 
+    if not os.path.exists("weights"):
+        os.makedirs("weights")
+        with open("weights/weights.h5", 'w'):
+            pass
+        with open("weights/weights_ft_tmp.h5", 'w'):
+            pass
+        with open("weights/weights_tl_tmp.h5", 'w'):
+            pass
+
 
 def parse(filename, root_directory, training_size):
     """
