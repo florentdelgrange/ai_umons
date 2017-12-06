@@ -2,6 +2,8 @@ from keras.applications.inception_resnet_v2 import InceptionResNetV2
 from keras.layers import Dense, GlobalAveragePooling2D
 from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array, load_img
 
+EPOCHS = 1
+
 def generate_dataset(path='sorted_faces/train'):
     datagen = ImageDataGenerator(
             rotation_range=40,
@@ -56,7 +58,7 @@ if __name__ == '__main__':
     # train the model on the new data for a few epochs
     # Example : model.fit_generator(generate_arrays_from_file('/my_file.txt'),
     #                    steps_per_epoch=1000, epochs=10)
-    model.fit_generator(generate_dataset(), steps_per_epoch=1000, epochs=)
+    model.fit_generator(generate_dataset(), steps_per_epoch=1000, epochs=EPOCHS)
 
     # at this point, the top layers are well trained and we can start fine-tuning
     # We will freeze the bottom N layers
@@ -81,4 +83,12 @@ if __name__ == '__main__':
 
     # we train our model again (this time fine-tuning the top 2 inception blocks
     # alongside the top Dense layers
-    model.fit_generator(...)
+    model.fit_generator(generate_dataset(), steps_per_epoch=1000, epochs=EPOCHS)
+
+    # serialize model to JSON
+    model_json = model.to_json()
+    with open("model.json", "w") as json_file:
+        json_file.write(model_json)
+    # serialize weights to HDF5
+    model.save_weights("model.h5")
+    print("Saved model to disk")
