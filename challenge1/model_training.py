@@ -42,7 +42,7 @@ if __name__ == '__main__':
     # let's add a fully-connected layer
     x = Dense(1024, activation='relu')(x)
     # and a logistic layer ; we have 2 classes
-    predictions = Dense(1, activation='softmax')(x)
+    predictions = Dense(1, activation='sigmoid')(x)
 
     # this is the model we will train
     model = Model(inputs=base_model.input, outputs=predictions)
@@ -79,7 +79,7 @@ if __name__ == '__main__':
     # we need to recompile the model for these modifications to take effect
     # we use SGD with a low learning rate
     from keras.optimizers import SGD
-    model.compile(optimizer=SGD(lr=0.0001, momentum=0.9), loss='binary_crossentropy')
+    model.compile(optimizer=SGD(lr=0.001, momentum=0.9), loss='binary_crossentropy')
 
     # we train our model again (this time fine-tuning the top 2 inception blocks
     # alongside the top Dense layers
