@@ -76,7 +76,7 @@ def create_directories_all():
             pass
         with open("weights/weights_tl_tmp.h5", 'w'):
             pass
-        
+
 def parse(filename, root_directory, training_size):
     """
     Goes trough a data description file and sorts the data into a training
@@ -233,6 +233,16 @@ def parse_all(root_directory, training_size):
 
     shuffled_indices = np.random.permutation(count)
 
+    man = 0
+    wamen = 0
+
+    for i in genders:
+        if i == "m":
+            man+=1
+        elif i =="f":
+            wamen+=1
+
+    print(man, wamen)
     print(count, len(ages))
 
     training_set_size = int(count * training_size)
@@ -244,10 +254,11 @@ def parse_all(root_directory, training_size):
     for i in training_indices:
         if str(genders[i]) == 'm':
             copyfile(output + "all/" + str(i) + ".jpg", output + "train/men/" + str(i) + ".jpg")
+            copyfile(output + "all/" + str(i) + ".jpg", output + "train/all/" + str(i) + ".jpg")
+
         elif str(genders[i]) == 'f':
             copyfile(output + "all/" + str(i) + ".jpg", output + "train/women/" + str(i) + ".jpg")
-
-        copyfile(output + "all/" + str(i) + ".jpg", output + "train/all/" + str(i) + ".jpg")
+            copyfile(output + "all/" + str(i) + ".jpg", output + "train/all/" + str(i) + ".jpg")
 
         train_info.write(str(i) + ".jpg" + " ; " + str(genders[i]) + " ; " + str(ages[i]) + "\n")
 
@@ -258,10 +269,11 @@ def parse_all(root_directory, training_size):
     for i in test_indices:
         if str(genders[i]) == "m":
             copyfile(output + "all/" + str(i) + ".jpg", output + "valid/men" + str(i) + ".jpg")
+            copyfile(output + "all/" + str(i) + ".jpg", output + "valid/all" + str(i) + ".jpg")
+
         elif str(genders[i]) == "f":
             copyfile(output + "all/" + str(i) + ".jpg", output + "valid/women" + str(i) + ".jpg")
-
-        copyfile(output + "all/" + str(i) + ".jpg", output + "valid/all" + str(i) + ".jpg")
+            copyfile(output + "all/" + str(i) + ".jpg", output + "valid/all" + str(i) + ".jpg")
 
         valid_info.write(str(i) + ".jpg" + " ; " + str(genders[i]) + " ; " + str(ages[i]) + "\n")
 
