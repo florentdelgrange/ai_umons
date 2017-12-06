@@ -217,13 +217,14 @@ def parse_all(root_directory, training_size):
                 # names can be prepended to the name in the file)
                 # 0 : folder, 2 : prepended name, 1 : filename + extension
                 for name in glob.glob(root_directory + "/faces/" + line[0] + '/*' + line[2] + "." + line[1]):
-                    copyfile(name, output + "all/" + str(count) + ".jpg")
-                    all_info.write(str(count) + ".jpg" + " ; " + line[4] + " ; " + line[3] + "\n")
-                    ages.append(line[3])
-                    genders.append(line[4])
+                    if line[4] == "m" or line[4] == "f":
+                        copyfile(name, output + "all/" + str(count) + ".jpg")
+                        all_info.write(str(count) + ".jpg" + " ; " + line[4] + " ; " + line[3] + "\n")
+                        ages.append(line[3])
+                        genders.append(line[4])
 
-                    count += 1
-                    # close the info files
+                        count += 1
+                        # close the info files
 
     # close the info files
     all_info.close()
@@ -232,18 +233,6 @@ def parse_all(root_directory, training_size):
     time.sleep(2)
 
     shuffled_indices = np.random.permutation(count)
-
-    man = 0
-    wamen = 0
-
-    for i in genders:
-        if i == "m":
-            man+=1
-        elif i =="f":
-            wamen+=1
-
-    print(man, wamen)
-    print(count, len(ages))
 
     training_set_size = int(count * training_size)
     training_indices = shuffled_indices[:training_set_size]
@@ -254,11 +243,10 @@ def parse_all(root_directory, training_size):
     for i in training_indices:
         if str(genders[i]) == 'm':
             copyfile(output + "all/" + str(i) + ".jpg", output + "train/men/" + str(i) + ".jpg")
-            copyfile(output + "all/" + str(i) + ".jpg", output + "train/all/" + str(i) + ".jpg")
-
         elif str(genders[i]) == 'f':
             copyfile(output + "all/" + str(i) + ".jpg", output + "train/women/" + str(i) + ".jpg")
-            copyfile(output + "all/" + str(i) + ".jpg", output + "train/all/" + str(i) + ".jpg")
+
+        copyfile(output + "all/" + str(i) + ".jpg", output + "train/all/" + str(i) + ".jpg")
 
         train_info.write(str(i) + ".jpg" + " ; " + str(genders[i]) + " ; " + str(ages[i]) + "\n")
 
@@ -269,14 +257,14 @@ def parse_all(root_directory, training_size):
     for i in test_indices:
         if str(genders[i]) == "m":
             copyfile(output + "all/" + str(i) + ".jpg", output + "valid/men" + str(i) + ".jpg")
-            copyfile(output + "all/" + str(i) + ".jpg", output + "valid/all" + str(i) + ".jpg")
-
         elif str(genders[i]) == "f":
             copyfile(output + "all/" + str(i) + ".jpg", output + "valid/women" + str(i) + ".jpg")
-            copyfile(output + "all/" + str(i) + ".jpg", output + "valid/all" + str(i) + ".jpg")
+
+        copyfile(output + "all/" + str(i) + ".jpg", output + "valid/all" + str(i) + ".jpg")
 
         valid_info.write(str(i) + ".jpg" + " ; " + str(genders[i]) + " ; " + str(ages[i]) + "\n")
 
+    valid_info.close()
 
 create_directories_all()
 parse_all("openu/", 0.75)
