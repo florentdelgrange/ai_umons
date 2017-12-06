@@ -1,8 +1,13 @@
+import os
 from keras.applications.inception_resnet_v2 import InceptionResNetV2
+from keras.models import Model
 from keras.layers import Dense, GlobalAveragePooling2D
 from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array, load_img
+import numpy as np
+from keras.utils.np_utils import to_categorical
 
 EPOCHS = 1
+gender_dict = {'m': 0, 'f' : 1}
 
 def generate_dataset(path='sorted_faces/train'):
     datagen = ImageDataGenerator(
@@ -16,23 +21,18 @@ def generate_dataset(path='sorted_faces/train'):
     if not os.path.exists("sorted_faces/train/gen_faces"):
         os.makedirs("sorted_faces/train/gen_faces")
     while 1:
-        for i in range():
-            male_img = image.load_img('{}/men/{}'.format(path, i), target_size=(299, 299))
-            female_img = image.load_img('{}/women/{}'.format(path, i), target_size=(299, 299))
-            get_x = {}
-            x = image.img_to_array(male_img)
-            x = np.expand_dims(x, axis=0)
-            get_x['male'] = x
-            x = image.img_to_array(female_img)
-            x = np.expand_dims(x, axis=0)
-            get_x['female'] = x
-            for genre in ['male', 'female']:
-                for i, batch in enumerate(datagen.flow(get_x[genre], batch_size=1,
+        with open('{}/train_info.txt'.format(path), 'r') as info:
+            for line in info:
+                img_name, gender, age = line.split(' ; ')
+                img = load_img('{}/all/{}'.format(path, img_name), target_size=(299, 299))
+                x = img_to_array(img)
+                x = x.reshape((1,) + x.shape)
+                #x = np.expand_dims(x, axis=0)
+                for i, batch in enumerate(datagen.flow(x, batch_size=1,
                     save_to_dir='sorted_faces/train/gen_faces', save_prefix='gen', save_format='jpeg')):
                     if i > 20:
-                        break  # otherwise the generator would loop indefinitely
-                    yield (batch, genre)
-
+                        break # otherwise the generator would loop indefinitely
+                    yield (batch, np.array([gender_dict[gender]]))
 
 if __name__ == '__main__':
     base_model = InceptionResNetV2(include_top=False)
@@ -42,7 +42,7 @@ if __name__ == '__main__':
     # let's add a fully-connected layer
     x = Dense(1024, activation='relu')(x)
     # and a logistic layer ; we have 2 classes
-    predictions = Dense(2, activation='softmax')(x)
+    predictions = Dense(1, activation='softmax')(x)
 
     # this is the model we will train
     model = Model(inputs=base_model.input, outputs=predictions)
@@ -53,7 +53,7 @@ if __name__ == '__main__':
         layer.trainable = False
 
     # compile the model (should be done *after* setting layers to non-trainable)
-    model.compile(optimizer='rmsprop', loss='categorical_crossentropy')
+    model.compile(optimizer='rmsprop', loss='binary_crossentropy')
 
     # train the model on the new data for a few epochs
     # Example : model.fit_generator(generate_arrays_from_file('/my_file.txt'),
@@ -79,7 +79,7 @@ if __name__ == '__main__':
     # we need to recompile the model for these modifications to take effect
     # we use SGD with a low learning rate
     from keras.optimizers import SGD
-    model.compile(optimizer=SGD(lr=0.0001, momentum=0.9), loss='categorical_crossentropy')
+    model.compile(optimizer=SGD(lr=0.0001, momentum=0.9), loss='binary_crossentropy')
 
     # we train our model again (this time fine-tuning the top 2 inception blocks
     # alongside the top Dense layers
