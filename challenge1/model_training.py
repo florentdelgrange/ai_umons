@@ -44,7 +44,7 @@ def generate_dataset(path='sorted_faces/train'):
                 img_name, gender, age = line.split(' ; ')
                 img = load_img('{}/all/{}'.format(path, img_name), target_size=(299, 299))
                 x = img_to_array(img)
-                #x = preprocess_input(x)
+                x = preprocess_input(x)
                 x = x.reshape((1,) + x.shape)
                 x = np.expand_dims(x, axis=0)
                 for i, batch in enumerate(datagen.flow(x, batch_size=1,
