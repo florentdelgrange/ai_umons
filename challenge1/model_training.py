@@ -46,7 +46,6 @@ def generate_dataset(path='sorted_faces/train'):
                 x = img_to_array(img)
                 x = preprocess_input(x)
                 x = x.reshape((1,) + x.shape)
-                x = np.expand_dims(x, axis=0)
                 for i, batch in enumerate(datagen.flow(x, batch_size=1,
                     save_to_dir='sorted_faces/train/gen_faces', save_prefix='gen', save_format='jpeg')):
                     if i > 10:
