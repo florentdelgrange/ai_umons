@@ -7,10 +7,10 @@ import numpy as np
 from keras.utils.np_utils import to_categorical
 from logger import Logger
 
-EPOCHS = 45
+EPOCHS = 2
 BATCH_SIZE = 2000
 gender_dict = {'m': 0, 'f' : 1}
-DROPBOX_PATH = '/home/florent/Dropbox/Info/ai_umons/challenge1'
+DROPBOX_PATH = '.'
 
 def save(model, path='.'):
     # serialize model to JSON
@@ -21,6 +21,11 @@ def save(model, path='.'):
     model.save_weights("{}/model.h5".format(path))
     print("Saved model to disk")
 
+def preprocess_input(x):
+    x /= 255.
+    x -= 0.5
+    x *= 2.
+    return x
 
 def generate_dataset(path='sorted_faces/train'):
     datagen = ImageDataGenerator(
@@ -39,8 +44,9 @@ def generate_dataset(path='sorted_faces/train'):
                 img_name, gender, age = line.split(' ; ')
                 img = load_img('{}/all/{}'.format(path, img_name), target_size=(299, 299))
                 x = img_to_array(img)
+                #x = preprocess_input(x)
                 x = x.reshape((1,) + x.shape)
-                #x = np.expand_dims(x, axis=0)
+                x = np.expand_dims(x, axis=0)
                 for i, batch in enumerate(datagen.flow(x, batch_size=1,
                     save_to_dir='sorted_faces/train/gen_faces', save_prefix='gen', save_format='jpeg')):
                     if i > 10:
@@ -95,7 +101,7 @@ if __name__ == '__main__':
     # we need to recompile the model for these modifications to take effect
     # we use SGD with a low learning rate
     from keras.optimizers import SGD
-    model.compile(optimizer=SGD(lr=0.011, momentum=0.9), loss='binary_crossentropy')
+    model.compile(optimizer=SGD(lr=0.011, momentum=0.9), loss='binary_crossentropy', metrics=['accuracy'])
 
     # we train our model again (this time fine-tuning the top 2 inception blocks
     # alongside the top Dense layers
