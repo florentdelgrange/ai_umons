@@ -5,9 +5,22 @@ from keras.layers import Dense, GlobalAveragePooling2D
 from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array, load_img
 import numpy as np
 from keras.utils.np_utils import to_categorical
+from logger import Logger
 
-EPOCHS = 1
+EPOCHS = 45
+BATCH_SIZE = 2000
 gender_dict = {'m': 0, 'f' : 1}
+DROPBOX_PATH = '/home/florent/Dropbox/Info/ai_umons/challenge1'
+
+def save(model, path='.'):
+    # serialize model to JSON
+    model_json = model.to_json()
+    with open("{}/model.json".format(path), "w") as json_file:
+        json_file.write(model_json)
+    # serialize weights to HDF5
+    model.save_weights("{}/model.h5".format(path))
+    print("Saved model to disk")
+
 
 def generate_dataset(path='sorted_faces/train'):
     datagen = ImageDataGenerator(
@@ -30,11 +43,13 @@ def generate_dataset(path='sorted_faces/train'):
                 #x = np.expand_dims(x, axis=0)
                 for i, batch in enumerate(datagen.flow(x, batch_size=1,
                     save_to_dir='sorted_faces/train/gen_faces', save_prefix='gen', save_format='jpeg')):
-                    if i > 20:
+                    if i > 10:
                         break # otherwise the generator would loop indefinitely
                     yield (batch, np.array([gender_dict[gender]]))
 
 if __name__ == '__main__':
+    logs = Logger(filename='{}/mylog.log'.format(DROPBOX_PATH))
+
     base_model = InceptionResNetV2(include_top=False)
     # add a global spatial average pooling layer
     x = base_model.output
@@ -53,12 +68,13 @@ if __name__ == '__main__':
         layer.trainable = False
 
     # compile the model (should be done *after* setting layers to non-trainable)
-    model.compile(optimizer='rmsprop', loss='binary_crossentropy')
+    model.compile(optimizer='rmsprop', loss='binary_crossentropy', metrics=['accuracy'])
 
     # train the model on the new data for a few epochs
     # Example : model.fit_generator(generate_arrays_from_file('/my_file.txt'),
     #                    steps_per_epoch=1000, epochs=10)
-    model.fit_generator(generate_dataset(), steps_per_epoch=1000, epochs=EPOCHS)
+    print("Top layers fitting phase")
+    model.fit_generator(generate_dataset(), steps_per_epoch=BATCH_SIZE, epochs=EPOCHS)
 
     # at this point, the top layers are well trained and we can start fine-tuning
     # We will freeze the bottom N layers
@@ -79,16 +95,15 @@ if __name__ == '__main__':
     # we need to recompile the model for these modifications to take effect
     # we use SGD with a low learning rate
     from keras.optimizers import SGD
-    model.compile(optimizer=SGD(lr=0.001, momentum=0.9), loss='binary_crossentropy')
+    model.compile(optimizer=SGD(lr=0.011, momentum=0.9), loss='binary_crossentropy')
 
     # we train our model again (this time fine-tuning the top 2 inception blocks
     # alongside the top Dense layers
-    model.fit_generator(generate_dataset(), steps_per_epoch=1000, epochs=EPOCHS)
+    print("\n")
+    print("Fine tuning phase")
+    model.fit_generator(generate_dataset(), steps_per_epoch=BATCH_SIZE, epochs=EPOCHS)
 
-    # serialize model to JSON
-    model_json = model.to_json()
-    with open("model.json", "w") as json_file:
-        json_file.write(model_json)
-    # serialize weights to HDF5
-    model.save_weights("model.h5")
-    print("Saved model to disk")
+    save(model)
+    save(model, path=DROPBOX_PATH)
+
+    logs.close()
