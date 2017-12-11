@@ -256,11 +256,11 @@ def parse_all(root_directory, training_size):
 
     for i in test_indices:
         if str(genders[i]) == "m":
-            copyfile(output + "all/" + str(i) + ".jpg", output + "valid/men" + str(i) + ".jpg")
+            copyfile(output + "all/" + str(i) + ".jpg", output + "valid/men/" + str(i) + ".jpg")
         elif str(genders[i]) == "f":
-            copyfile(output + "all/" + str(i) + ".jpg", output + "valid/women" + str(i) + ".jpg")
+            copyfile(output + "all/" + str(i) + ".jpg", output + "valid/women/" + str(i) + ".jpg")
 
-        copyfile(output + "all/" + str(i) + ".jpg", output + "valid/all" + str(i) + ".jpg")
+        copyfile(output + "all/" + str(i) + ".jpg", output + "valid/all/" + str(i) + ".jpg")
 
         valid_info.write(str(i) + ".jpg" + " ; " + str(genders[i]) + " ; " + str(ages[i]) + "\n")
 
