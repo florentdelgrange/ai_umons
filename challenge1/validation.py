@@ -3,9 +3,12 @@ from keras.layers import Dense
 from keras.models import model_from_json
 from keras.applications.imagenet_utils import decode_predictions
 from keras.preprocessing import image
+from logger import Logger
 import numpy as np
 import os
 import sys
+
+DROPBOX_PATH = '.'
 
 def preprocess_input(x):
     x /= 255.
@@ -14,6 +17,9 @@ def preprocess_input(x):
     return x
 
 if __name__ == '__main__':
+
+    logs = Logger(filename='{}/accuracy.log'.format(DROPBOX_PATH))
+
     # load json and create model
     json_file = open('model.json', 'r')
     loaded_model_json = json_file.read()
@@ -33,7 +39,7 @@ if __name__ == '__main__':
             x = np.expand_dims(x, axis=0)
 
             x = preprocess_input(x)
-            
+
             preds = model.predict(x)
             # decode the results into a list of tuples (class, description, probability)
             # (one such list for each sample in the batch)
@@ -42,3 +48,5 @@ if __name__ == '__main__':
             print('{} : y={} | y_pred={} (F: {:.2f} %)'.format(len(predictions), gender, {True: 'm', False: 'f'}[p<0.5], p * 100))
     predictions = np.array(predictions)
     print('Accuracy : {:.2f} %'.format(len(predictions[predictions]) / len(predictions) * 100))
+    
+    logs.close()
