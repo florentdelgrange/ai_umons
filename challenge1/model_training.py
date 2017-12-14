@@ -9,17 +9,17 @@ from logger import Logger
 
 EPOCHS = 42
 BATCH_SIZE = 64
-STEPS_PER_EPOCH = 9146
+STEPS_PER_EPOCH = 9146 // BATCH_SIZE
 gender_dict = {'m': 0, 'f' : 1}
 DROPBOX_PATH = '.'
 
-def save(model, path='.'):
+def save(model, path='.', model_name='inception_resent_v2_gender'):
     # serialize model to JSON
     model_json = model.to_json()
-    with open("{}/model.json".format(path), "w") as json_file:
+    with open("{}/{}.json".format(path, model_name), "w") as json_file:
         json_file.write(model_json)
     # serialize weights to HDF5
-    model.save_weights("{}/model.h5".format(path))
+    model.save_weights("{}/{}.h5".format(path, model_name))
     print("Saved model to disk")
 
 def preprocess_input(x):
@@ -37,35 +37,34 @@ def generate_dataset(path='sorted_faces/train', mode='train'):
             zoom_range=0.4,
             horizontal_flip=True,
             fill_mode='nearest')
-    if not os.path.exists("sorted_faces/train/gen_faces"):
-        os.makedirs("sorted_faces/train/gen_faces")
 
     full_dataset_fed = False
 
     while 1:
         with open('{}/{}_info.txt'.format(path, mode), 'r') as info:
             batch_step = 0
-            X = [None] * BATCH_SIZE
-            Y = [None] * BATCH_SIZE
+            X = np.empty([BATCH_SIZE, 299, 299, 3])
+            Y = np.empty([BATCH_SIZE], dtype='uint8')
             for line in info:
-                if batch_step < BATCH_SIZE:
-                    img_name, gender, age = line.split(' ; ')
-                    img = load_img('{}/all/{}'.format(path, img_name), target_size=(299, 299))
-                    x = img_to_array(img)
-                    x = preprocess_input(x)
+                img_name, gender, age = line.split(' ; ')
+                img = load_img('{}/all/{}'.format(path, img_name), target_size=(299, 299))
+                x = img_to_array(img)
+                x = preprocess_input(x)
+                X[batch_step] = x
+                Y[batch_step] = gender_dict[gender]
+                batch_step += 1
+
+                if batch_step == BATCH_SIZE:
                     if full_dataset_fed:
-                        x = datagen.flow(x, batch_size=1).next()
-                    X[batch_step] = x
-                    Y[batch_step] = gender_dict[gender]
-                    batch_step += 1
-                else:
-                    yield (np.array(X), np.array(Y))
+                        X = datagen.flow(X, batch_size=BATCH_SIZE).next()
+                    yield (X, Y)
                     batch_step = 0
-                    X = [None] * BATCH_SIZE
-                    Y = [None] * BATCH_SIZE
+                    X = np.empty([BATCH_SIZE, 299, 299, 3])
+                    Y = np.empty([BATCH_SIZE], dtype='uint8')
+
         full_dataset_fed = True
 
-def fine_tuning(model):
+def fine_tuning(base_model, model):
     # We will freeze the bottom N layers
     # and train the remaining top layers.
 
@@ -92,8 +91,8 @@ def fine_tuning(model):
     print("Fine tuning phase")
     model.fit_generator(generate_dataset(), steps_per_epoch=STEPS_PER_EPOCH, epochs=EPOCHS)
             #validation_data=generate_dataset('sorted_faces/valid', 'valid'), validation_steps=200)
-
-
+    save(model)
+    save(model, path=DROPBOX_PATH, model_name='fine_tuned_model')
 
 if __name__ == '__main__':
     np.random.seed(42)
@@ -125,10 +124,9 @@ if __name__ == '__main__':
     print("Top layers fitting phase")
 
     model.fit_generator(generate_dataset(), steps_per_epoch=STEPS_PER_EPOCH, epochs=EPOCHS)
-            #validation_data=generate_dataset('sorted_faces/valid', 'valid'), validation_steps=200)
+    #validation_data=generate_dataset('sorted_faces/valid', 'valid'), validation_steps=200)
 
     # at this point, the top layers are well trained and we can start fine-tuning
     save(model)
-    save(model, path=DROPBOX_PATH)
 
     logs.close()
