@@ -9,6 +9,8 @@ from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_a
 import numpy as np
 from keras.utils.np_utils import to_categorical
 from keras.callbacks import TensorBoard
+from keras.models import model_from_json
+from keras.callbacks import ModelCheckpoint
 
 EPOCHS = 42
 BATCH_SIZE = 64
@@ -19,11 +21,13 @@ DROPBOX_PATH = '/home/florent/Dropbox/Info/ai_umons/challenge1'
 def save(model, path='.', model_name='xception_gender'):
     # serialize model to JSON
     model_json = model.to_json()
-    with open("{}/{}.json".format(path, model_name), "w") as json_file:
+    with open("{}/models/{}.json".format(path, model_name), "w") as json_file:
         json_file.write(model_json)
     # serialize weights to HDF5
-    model.save_weights("{}/{}.h5".format(path, model_name))
-    print("Saved model to disk")
+    model.save_weights("{}/models/{}.h5".format(path, model_name))
+    print("Saved model to disk : {}".format(path))
+    if path != '.':
+        save(model, path='.', model_name=model_name)
 
 def preprocess_input(x):
     x /= 255.
@@ -31,7 +35,7 @@ def preprocess_input(x):
     x *= 2.
     return x
 
-def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
+def generate_dataset(path='sorted_faces/train', rotations=False):
     datagen = ImageDataGenerator(
             rotation_range=30,
             width_shift_range=0.4,
@@ -63,15 +67,14 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
                     X = np.empty([BATCH_SIZE, 299, 299, 3])
                     Y = np.empty([BATCH_SIZE], dtype='uint8')
 
-
 def fine_tuning():
     # load json and create model
-    json_file = open('{}/robust_xception_gender.json'.format(DROPBOX_PATH), 'r')
+    json_file = open('{}/models/robust_xception_gender.json'.format(DROPBOX_PATH), 'r')
     loaded_model_json = json_file.read()
     json_file.close()
     model = model_from_json(loaded_model_json)
     # load weights into new model
-    model.load_weights("{}/robust_xception_gender.json".format(DROPBOX_PATH))
+    model.load_weights("{}/models/robust_xception_gender.h5".format(DROPBOX_PATH))
 
     # We will freeze the bottom N layers
     # and train the remaining top layers.
@@ -93,19 +96,28 @@ def fine_tuning():
     # alongside the top Dense layers
     print("\n")
     print("Fine tuning phase")
-    tensorboard = TensorBoard(log_dir='{}/logs/{}'.format(DROPBOX_PATH, time()))
-    model.fit_generator(generate_dataset(), steps_per_epoch=STEPS_PER_EPOCH, epochs=EPOCHS, callbacks=[tensorboard])
-            #validation_data=generate_dataset('sorted_faces/valid', 'valid'), validation_steps=200)
 
+    # Callbacks
+    if not os.path.exists('{}/weights'.format(DROPBOX_PATH)):
+        os.makedirs("{}/weights".format(DROPBOX_PATH))
+    filepath="{}/weights/weights-improvement-{epoch:02d}-{val_acc:.2f}.hdf5"
+    checkpoint = ModelCheckpoint(filepath, monitor='val_acc', verbose=1, save_best_only=True, mode='max')
+    tensorboard = TensorBoard(log_dir='{}/logs/{}'.format(DROPBOX_PATH, time()))#, histogram_freq=1, write_grads=True, batch_size=BATCH_SIZE)
+
+    # Fit
+    model.fit_generator(generate_dataset(rotations=True), steps_per_epoch=STEPS_PER_EPOCH,
+                        validation_data=generate_dataset(path='sorted_faces/valid', rotations=True),
+                        validation_steps=15,
+                        epochs=EPOCHS, callbacks=[tensorboard, checkpoint])
     save(model, path=DROPBOX_PATH, model_name='fine_tuned_xception_gender')
 
 def main_training():
-    json_file = open('{}/xception_gender.json'.format(DROPBOX_PATH), 'r')
+    json_file = open('{}/models/xception_gender.json'.format(DROPBOX_PATH), 'r')
     loaded_model_json = json_file.read()
     json_file.close()
     model = model_from_json(loaded_model_json)
     # load weights into new model
-    model.load_weights("{}/xception_gender.json".format(DROPBOX_PATH))
+    model.load_weights("{}/models/xception_gender.h5".format(DROPBOX_PATH))
 
 
     # first: train only the top layers (which were randomly initialized)
@@ -118,9 +130,18 @@ def main_training():
 
     print("\nTop layers fitting phase (with rotations)")
 
-    tensorboard = TensorBoard(log_dir='{}/logs/{}'.format(DROPBOX_PATH, time()))
+    # Callbacks
+    if not os.path.exists('{}/weights'.format(DROPBOX_PATH)):
+        os.makedirs("{}/weights".format(DROPBOX_PATH))
+    filepath="{}/weights/weights-improvement-{epoch:02d}-{val_acc:.2f}.hdf5"
+    checkpoint = ModelCheckpoint(filepath, monitor='val_acc', verbose=1, save_best_only=True, mode='max')
+    tensorboard = TensorBoard(log_dir='{}/logs/{}'.format(DROPBOX_PATH, time()))#, histogram_freq=1, write_grads=True, batch_size=BATCH_SIZE)
 
-    model.fit_generator(generate_dataset(rotations=True), steps_per_epoch=STEPS_PER_EPOCH, epochs=EPOCHS, callbacks=[tensorboard])
+    # Fit
+    model.fit_generator(generate_dataset(rotations=True), steps_per_epoch=STEPS_PER_EPOCH,
+                        validation_data=generate_dataset(path='sorted_faces/valid', rotations=True),
+                        validation_steps=15,
+                        epochs=EPOCHS, callbacks=[tensorboard, checkpoint])
 
     # at this point, the top layers are well trained and we can start fine-tuning
     save(model, path=DROPBOX_PATH, model_name='robust_xception_gender')
@@ -157,7 +178,7 @@ def model_initialisation_phase():
     #                    steps_per_epoch=1000, epochs=10)
     print("\nTop layers fitting phase")
 
-    tensorboard = TensorBoard(log_dir='{}/logs/{}'.format(DROPBOX_PATH, time()))
+    tensorboard = TensorBoard(log_dir='{}/logs/{}'.format(DROPBOX_PATH, time()))#, histogram_freq=1, write_grads=True, batch_size=BATCH_SIZE)
 
     model.fit_generator(generate_dataset(), steps_per_epoch=STEPS_PER_EPOCH, epochs=EPOCHS//2, callbacks=[tensorboard])
     #validation_data=generate_dataset('sorted_faces/valid', 'valid'), validation_steps=200)
@@ -166,10 +187,24 @@ def model_initialisation_phase():
     save(model, DROPBOX_PATH)
 
 
+class TooManyArgumentsError(Exception):
+    pass
+
+
 if __name__ == '__main__':
     if not os.path.exists('{}/logs'.format(DROPBOX_PATH)):
         os.makedirs("{}/logs".format(DROPBOX_PATH))
-    mode = sys.argv[1:]
+    if not os.path.exists('{}/models'.format(DROPBOX_PATH)):
+        os.makedirs("{}/models".format(DROPBOX_PATH))
+    mode = ''
+    if len(sys.argv) > 1:
+        if '--mode=' in sys.argv[1:]:
+            mode = list(map(lambda x: x.split('--mode=')[1],
+                    filter(lambda s: s[:7]=='--mode=',
+                        sys.argv[1:])))
+            if len(mode) > 1:
+                raise TooManyArgumentsError("Too many arguments with --mode option")
+            mode = mode[0]
     if mode == 'fine-tuning':
         fine_tuning()
     elif mode == 'main-training':

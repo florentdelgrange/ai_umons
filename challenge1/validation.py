@@ -5,12 +5,13 @@ from keras.layers import Dense
 from keras.models import model_from_json
 from keras.applications.imagenet_utils import decode_predictions
 from keras.preprocessing import image
-from logger import Logger
 import numpy as np
 import os
 import sys
 
-DROPBOX_PATH = '.'
+class ArgumentsError(Exception):
+    pass
+
 
 def preprocess_input(x):
     x /= 255.
@@ -26,22 +27,24 @@ def file_len(fname):
 
 if __name__ == '__main__':
 
-    logs = Logger(filename='{}/accuracy.log'.format(DROPBOX_PATH))
+    if len(sys.argv) < 2:
+        raise ArgumentsError("Not enough arguments. Expected : model file name. Exemple:\n>> python3 validation.py model")
 
+    model_name = sys.argv[1]
     # load json and create model
-    json_file = open('xception_gender.json', 'r')
+    json_file = open('{}.json'.format(model_name), 'r')
     loaded_model_json = json_file.read()
     json_file.close()
     model = model_from_json(loaded_model_json)
     # load weights into new model
-    model.load_weights("xception_gender.h5")
+    model.load_weights("{}.h5".format(model_name))
 
     predictions = []
 
     length = file_len('sorted_faces/valid/valid_info.txt')
 
     bar = progressbar.ProgressBar(maxval=length, \
-    widgets=[progressbar.Bar('=', '[', ']'), ' ', progressbar.Percentage()])
+        widgets=[progressbar.Bar('=', '[', ']'), ' ', progressbar.Percentage()])
     bar.start()
 
     with open('sorted_faces/valid/valid_info.txt', 'r') as f:
@@ -64,5 +67,3 @@ if __name__ == '__main__':
 
     predictions = np.array(predictions)
     print('Accuracy : {:.2f} %'.format(len(predictions[predictions]) / len(predictions) * 100))
-    
-    logs.close()
