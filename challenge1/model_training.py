@@ -35,7 +35,7 @@ def preprocess_input(x):
     x *= 2.
     return x
 
-def generate_dataset(path='sorted_faces/train', rotations=False):
+def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
     datagen = ImageDataGenerator(
             rotation_range=30,
             width_shift_range=0.4,
@@ -119,12 +119,6 @@ def main_training():
     # load weights into new model
     model.load_weights("{}/models/xception_gender.h5".format(CUSTOM_SAVE_PATH))
 
-
-    # first: train only the top layers (which were randomly initialized)
-    # i.e. freeze all convolutional InceptionV3 layers
-    for layer in base_model.layers:
-        layer.trainable = False
-
     # compile the model (should be done *after* setting layers to non-trainable)
     model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
@@ -139,7 +133,8 @@ def main_training():
 
     # Fit
     model.fit_generator(generate_dataset(rotations=True), steps_per_epoch=STEPS_PER_EPOCH,
-                        validation_data=generate_dataset(path='sorted_faces/valid', rotations=True),
+                        validation_data=generate_dataset(path='sorted_faces/valid',
+                                                         mode='valid', rotations=True),
                         validation_steps=15,
                         epochs=EPOCHS, callbacks=[tensorboard, checkpoint])
 
@@ -198,7 +193,7 @@ if __name__ == '__main__':
         os.makedirs("{}/models".format(CUSTOM_SAVE_PATH))
     mode = ''
     if len(sys.argv) > 1:
-        if '--mode=' in sys.argv[1:]:
+        if '--mode=' in ''.join(sys.argv[1:]):
             mode = list(map(lambda x: x.split('--mode=')[1],
                     filter(lambda s: s[:7]=='--mode=',
                         sys.argv[1:])))
