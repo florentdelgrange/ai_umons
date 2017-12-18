@@ -13,7 +13,7 @@ from keras.models import model_from_json
 from keras.callbacks import ModelCheckpoint
 
 EPOCHS = 42
-BATCH_SIZE = 64
+BATCH_SIZE = 32
 STEPS_PER_EPOCH = 9146 // BATCH_SIZE
 gender_dict = {'m': 0, 'f' : 1}
 CUSTOM_SAVE_PATH = '/home/florent/Dropbox/Info/ai_umons/challenge1'
@@ -100,7 +100,8 @@ def fine_tuning():
     # Callbacks
     if not os.path.exists('{}/weights'.format(CUSTOM_SAVE_PATH)):
         os.makedirs("{}/weights".format(CUSTOM_SAVE_PATH))
-    filepath="{}/weights/weights-improvement-{epoch:02d}-{val_acc:.2f}.hdf5"
+    
+    filepath= CUSTOM_SAVE_PATH + "/weights/weights-improvement-{epoch:02d}-{val_acc:.2f}.hdf5"
     checkpoint = ModelCheckpoint(filepath, monitor='val_acc', verbose=1, save_best_only=True, mode='max')
     tensorboard = TensorBoard(log_dir='{}/logs/{}'.format(CUSTOM_SAVE_PATH, time()))#, histogram_freq=1, write_grads=True, batch_size=BATCH_SIZE)
 
@@ -127,7 +128,8 @@ def main_training():
     # Callbacks
     if not os.path.exists('{}/weights'.format(CUSTOM_SAVE_PATH)):
         os.makedirs("{}/weights".format(CUSTOM_SAVE_PATH))
-    filepath="{}/weights/weights-improvement-{epoch:02d}-{val_acc:.2f}.hdf5"
+
+    filepath= CUSTOM_SAVE_PATH + "/weights/weights-improvement-{epoch:02d}-{val_acc:.2f}.hdf5"
     checkpoint = ModelCheckpoint(filepath, monitor='val_acc', verbose=1, save_best_only=True, mode='max')
     tensorboard = TensorBoard(log_dir='{}/logs/{}'.format(CUSTOM_SAVE_PATH, time()))#, histogram_freq=1, write_grads=True, batch_size=BATCH_SIZE)
 
@@ -135,7 +137,7 @@ def main_training():
     model.fit_generator(generate_dataset(rotations=True), steps_per_epoch=STEPS_PER_EPOCH,
                         validation_data=generate_dataset(path='sorted_faces/valid',
                                                          mode='valid', rotations=True),
-                        validation_steps=15,
+                        validation_steps=1,
                         epochs=EPOCHS, callbacks=[tensorboard, checkpoint])
 
     # at this point, the top layers are well trained and we can start fine-tuning
