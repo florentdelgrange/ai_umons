@@ -16,7 +16,7 @@ EPOCHS = 42
 BATCH_SIZE = 64
 STEPS_PER_EPOCH = 9146 // BATCH_SIZE
 gender_dict = {'m': 0, 'f' : 1}
-DROPBOX_PATH = '/home/florent/Dropbox/Info/ai_umons/challenge1'
+CUSTOM_SAVE_PATH = '/home/florent/Dropbox/Info/ai_umons/challenge1'
 
 def save(model, path='.', model_name='xception_gender'):
     # serialize model to JSON
@@ -69,12 +69,12 @@ def generate_dataset(path='sorted_faces/train', rotations=False):
 
 def fine_tuning():
     # load json and create model
-    json_file = open('{}/models/robust_xception_gender.json'.format(DROPBOX_PATH), 'r')
+    json_file = open('{}/models/robust_xception_gender.json'.format(CUSTOM_SAVE_PATH), 'r')
     loaded_model_json = json_file.read()
     json_file.close()
     model = model_from_json(loaded_model_json)
     # load weights into new model
-    model.load_weights("{}/models/robust_xception_gender.h5".format(DROPBOX_PATH))
+    model.load_weights("{}/models/robust_xception_gender.h5".format(CUSTOM_SAVE_PATH))
 
     # We will freeze the bottom N layers
     # and train the remaining top layers.
@@ -98,26 +98,26 @@ def fine_tuning():
     print("Fine tuning phase")
 
     # Callbacks
-    if not os.path.exists('{}/weights'.format(DROPBOX_PATH)):
-        os.makedirs("{}/weights".format(DROPBOX_PATH))
+    if not os.path.exists('{}/weights'.format(CUSTOM_SAVE_PATH)):
+        os.makedirs("{}/weights".format(CUSTOM_SAVE_PATH))
     filepath="{}/weights/weights-improvement-{epoch:02d}-{val_acc:.2f}.hdf5"
     checkpoint = ModelCheckpoint(filepath, monitor='val_acc', verbose=1, save_best_only=True, mode='max')
-    tensorboard = TensorBoard(log_dir='{}/logs/{}'.format(DROPBOX_PATH, time()))#, histogram_freq=1, write_grads=True, batch_size=BATCH_SIZE)
+    tensorboard = TensorBoard(log_dir='{}/logs/{}'.format(CUSTOM_SAVE_PATH, time()))#, histogram_freq=1, write_grads=True, batch_size=BATCH_SIZE)
 
     # Fit
     model.fit_generator(generate_dataset(rotations=True), steps_per_epoch=STEPS_PER_EPOCH,
                         validation_data=generate_dataset(path='sorted_faces/valid', rotations=True),
                         validation_steps=15,
                         epochs=EPOCHS, callbacks=[tensorboard, checkpoint])
-    save(model, path=DROPBOX_PATH, model_name='fine_tuned_xception_gender')
+    save(model, path=CUSTOM_SAVE_PATH, model_name='fine_tuned_xception_gender')
 
 def main_training():
-    json_file = open('{}/models/xception_gender.json'.format(DROPBOX_PATH), 'r')
+    json_file = open('{}/models/xception_gender.json'.format(CUSTOM_SAVE_PATH), 'r')
     loaded_model_json = json_file.read()
     json_file.close()
     model = model_from_json(loaded_model_json)
     # load weights into new model
-    model.load_weights("{}/models/xception_gender.h5".format(DROPBOX_PATH))
+    model.load_weights("{}/models/xception_gender.h5".format(CUSTOM_SAVE_PATH))
 
 
     # first: train only the top layers (which were randomly initialized)
@@ -131,11 +131,11 @@ def main_training():
     print("\nTop layers fitting phase (with rotations)")
 
     # Callbacks
-    if not os.path.exists('{}/weights'.format(DROPBOX_PATH)):
-        os.makedirs("{}/weights".format(DROPBOX_PATH))
+    if not os.path.exists('{}/weights'.format(CUSTOM_SAVE_PATH)):
+        os.makedirs("{}/weights".format(CUSTOM_SAVE_PATH))
     filepath="{}/weights/weights-improvement-{epoch:02d}-{val_acc:.2f}.hdf5"
     checkpoint = ModelCheckpoint(filepath, monitor='val_acc', verbose=1, save_best_only=True, mode='max')
-    tensorboard = TensorBoard(log_dir='{}/logs/{}'.format(DROPBOX_PATH, time()))#, histogram_freq=1, write_grads=True, batch_size=BATCH_SIZE)
+    tensorboard = TensorBoard(log_dir='{}/logs/{}'.format(CUSTOM_SAVE_PATH, time()))#, histogram_freq=1, write_grads=True, batch_size=BATCH_SIZE)
 
     # Fit
     model.fit_generator(generate_dataset(rotations=True), steps_per_epoch=STEPS_PER_EPOCH,
@@ -144,7 +144,7 @@ def main_training():
                         epochs=EPOCHS, callbacks=[tensorboard, checkpoint])
 
     # at this point, the top layers are well trained and we can start fine-tuning
-    save(model, path=DROPBOX_PATH, model_name='robust_xception_gender')
+    save(model, path=CUSTOM_SAVE_PATH, model_name='robust_xception_gender')
 
 def model_initialisation_phase():
     print("model initialisation (Xception based) ...")
@@ -178,13 +178,13 @@ def model_initialisation_phase():
     #                    steps_per_epoch=1000, epochs=10)
     print("\nTop layers fitting phase")
 
-    tensorboard = TensorBoard(log_dir='{}/logs/{}'.format(DROPBOX_PATH, time()))#, histogram_freq=1, write_grads=True, batch_size=BATCH_SIZE)
+    tensorboard = TensorBoard(log_dir='{}/logs/{}'.format(CUSTOM_SAVE_PATH, time()))#, histogram_freq=1, write_grads=True, batch_size=BATCH_SIZE)
 
     model.fit_generator(generate_dataset(), steps_per_epoch=STEPS_PER_EPOCH, epochs=EPOCHS//2, callbacks=[tensorboard])
     #validation_data=generate_dataset('sorted_faces/valid', 'valid'), validation_steps=200)
 
     # at this point, the top layers are well trained and we can start fine-tuning
-    save(model, DROPBOX_PATH)
+    save(model, CUSTOM_SAVE_PATH)
 
 
 class TooManyArgumentsError(Exception):
@@ -192,10 +192,10 @@ class TooManyArgumentsError(Exception):
 
 
 if __name__ == '__main__':
-    if not os.path.exists('{}/logs'.format(DROPBOX_PATH)):
-        os.makedirs("{}/logs".format(DROPBOX_PATH))
-    if not os.path.exists('{}/models'.format(DROPBOX_PATH)):
-        os.makedirs("{}/models".format(DROPBOX_PATH))
+    if not os.path.exists('{}/logs'.format(CUSTOM_SAVE_PATH)):
+        os.makedirs("{}/logs".format(CUSTOM_SAVE_PATH))
+    if not os.path.exists('{}/models'.format(CUSTOM_SAVE_PATH)):
+        os.makedirs("{}/models".format(CUSTOM_SAVE_PATH))
     mode = ''
     if len(sys.argv) > 1:
         if '--mode=' in sys.argv[1:]:
