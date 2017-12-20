@@ -30,7 +30,6 @@ def save(model, path='.', model_name='xception_gender'):
         save(model, path='.', model_name=model_name)
 
 def preprocess_input(x):
-    x = x.astype(np.float64)
     x /= 255.
     x -= 0.5
     x *= 2.
@@ -46,22 +45,23 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
         with open('{}/{}_info.txt'.format(path, mode), 'r') as info:
             batch_step = 0
             # memory optimization
-            X = np.empty([BATCH_SIZE, 299, 299, 3], dtype='uint8')
+            X = np.empty([BATCH_SIZE, 299, 299, 3])
             Y = np.empty([BATCH_SIZE], dtype='uint8')
             for line in info:
                 img_name, gender, age = line.split(' ; ')
                 img = load_img('{}/all/{}'.format(path, img_name), target_size=(299, 299))
-                x = img_to_array(img).astype('uint8')
+                x = img_to_array(img)
                 X[batch_step] = x
                 Y[batch_step] = gender_dict[gender]
                 batch_step += 1
 
                 if batch_step == BATCH_SIZE:
                     if rotations:
-                        X = datagen.flow(X, batch_size=BATCH_SIZE).next()
+                        X = datagen.flow(X, batch_size=BATCH_SIZE,# save_to_dir='sorted_faces/gen'
+                                ).next()
                     yield (preprocess_input(X), Y)
                     batch_step = 0
-                    X = np.empty([BATCH_SIZE, 299, 299, 3], dtype='uint8')
+                    X = np.empty([BATCH_SIZE, 299, 299, 3])
                     Y = np.empty([BATCH_SIZE], dtype='uint8')
 
 def fine_tuning(weights):
