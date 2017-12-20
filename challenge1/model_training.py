@@ -39,7 +39,6 @@ def preprocess_input(x):
 def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
     datagen = ImageDataGenerator(
             rotation_range=30,
-            zoom_range=0.4,
             horizontal_flip=True,
             fill_mode='nearest')
 
@@ -127,7 +126,7 @@ def main_training(weights=''):
     # add a global spatial average pooling layer
     x = base_model.output
     x = GlobalAveragePooling2D()(x)
-    # let's add a fully-connected layer
+    # let's add two fully-connected layer
     x = Dense(299, activation='relu')(x)
     # and a logistic layer ; we have 2 classes
     predictions = Dense(1, activation='sigmoid')(x)
@@ -135,11 +134,9 @@ def main_training(weights=''):
     # this is the model we will train
     model = Model(inputs=base_model.input, outputs=predictions)
 
-    # first: train only the top layers (which were randomly initialized)
-    # i.e. freeze all convolutional InceptionV3 layers
-    for layer in model.layers[:95]:
+    for layer in model.layers[:115]:
        layer.trainable = False
-    for layer in model.layers[95:]:
+    for layer in model.layers[115:]:
        layer.trainable = True
 
     # compile the model (should be done *after* setting layers to non-trainable)
