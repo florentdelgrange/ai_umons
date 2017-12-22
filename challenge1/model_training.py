@@ -13,7 +13,7 @@ from keras.models import model_from_json
 from keras.callbacks import ModelCheckpoint
 
 EPOCHS = 42
-BATCH_SIZE = 64
+BATCH_SIZE = 32
 STEPS_PER_EPOCH = 9146 // BATCH_SIZE
 gender_dict = {'m': 0, 'f' : 1}
 CUSTOM_SAVE_PATH = '.'
@@ -36,10 +36,15 @@ def preprocess_input(x):
     return x
 
 def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
-    datagen = ImageDataGenerator(
+    datagen_openu = ImageDataGenerator(
+            width_shift_range=0.1,
+            height_shift_range=0.1,
             rotation_range=30,
             horizontal_flip=True,
-            fill_mode='nearest')
+            #fill_mode='nearest'
+            fill_mode='constant',
+            cval=0.,
+            )
 
     while 1:
         with open('{}/{}_info.txt'.format(path, mode), 'r') as info:
@@ -57,7 +62,8 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
 
                 if batch_step == BATCH_SIZE:
                     if rotations:
-                        X = datagen.flow(X, batch_size=BATCH_SIZE,# save_to_dir='sorted_faces/gen'
+                        X = datagen_openu.flow(X, batch_size=BATCH_SIZE,
+                                #save_to_dir='sorted_faces/gen'
                                 ).next()
                     yield (preprocess_input(X), Y)
                     batch_step = 0
