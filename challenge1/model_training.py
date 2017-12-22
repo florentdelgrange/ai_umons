@@ -39,11 +39,11 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
     datagen_openu = ImageDataGenerator(
             width_shift_range=0.1,
             height_shift_range=0.1,
-            rotation_range=30,
+            #rotation_range=30,
             horizontal_flip=True,
             #fill_mode='nearest'
-            fill_mode='constant',
-            cval=0.,
+            #fill_mode='constant',
+            #cval=0.,
             )
 
     while 1:
@@ -62,7 +62,7 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
 
                 if batch_step == BATCH_SIZE:
                     if rotations:
-                        X = datagen_openu.flow(X, batch_size=BATCH_SIZE,
+                        X, Y = datagen_openu.flow(x=X, y=Y, batch_size=BATCH_SIZE,
                                 #save_to_dir='sorted_faces/gen'
                                 ).next()
                     yield (preprocess_input(X), Y)
@@ -242,7 +242,6 @@ if __name__ == '__main__':
         fine_tuning(weights)
     elif mode == 'main-training':
         main_training(weights)
-        fine_tuning(weights)
     else:
         model_initialisation_phase()
         main_training()
