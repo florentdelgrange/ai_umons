@@ -1,0 +1,95 @@
+from keras.layers import Dense, Conv2D, MaxPooling2D, Flatten
+from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array, load_img
+from time import time
+from keras import backend
+import numpy as np
+from keras.models import Model, Sequential
+from model_training import save
+from scipy.ndimage.interpolation import rotate
+from keras.callbacks import ModelCheckpoint
+from keras.callbacks import TensorBoard
+from keras.models import model_from_json
+from keras.callbacks import ModelCheckpoint
+import os
+
+
+input_shape = (299, 299, 3)
+
+EPOCHS = 21
+BATCH_SIZE = 21
+STEPS_PER_EPOCH = 9146 // BATCH_SIZE
+CUSTOM_SAVE_PATH = '.'
+
+def preprocess_input(x):
+    x /= 255.
+    x -= 0.5
+    x *= 2.
+    return x
+
+def generate_dataset(path='sorted_faces/train', mode='train'):
+    datagen_openu = ImageDataGenerator(
+            width_shift_range=0.1,
+            height_shift_range=0.1,
+            #rotation_range=30,
+            horizontal_flip=True,
+            #fill_mode='nearest'
+            #fill_mode='constant',
+            #cval=0.,
+            )
+    while 1:
+        with open('{}/{}_info.txt'.format(path, mode), 'r') as info:
+            batch_step = 0
+            # memory optimization
+            X = np.empty([BATCH_SIZE, 299, 299, 3])
+            Y = np.empty([BATCH_SIZE], dtype='uint8')
+            for line in info:
+                angle = np.random.uniform(-90, 90)
+                img_name, gender, age = line.split(' ; ')
+                img = load_img('{}/all/{}'.format(path, img_name), target_size=(299, 299))
+                x = img_to_array(img)
+                img=rotate(x, angle, mode='nearest', reshape=False)
+                X[batch_step] = x
+                Y[batch_step] = angle
+                batch_step += 1
+
+                if batch_step == BATCH_SIZE:
+                    X, Y = datagen_openu.flow(x=X, y=Y, batch_size=BATCH_SIZE,
+                            #save_to_dir='sorted_faces/gen'
+                            ).next()
+                    yield (preprocess_input(X), Y)
+                    batch_step = 0
+                    X = np.empty([BATCH_SIZE, 299, 299, 3])
+                    Y = np.empty([BATCH_SIZE], dtype='uint8')
+
+def rmse(y_true, y_pred):
+    return backend.sqrt(backend.mean(backend.square(y_pred - y_true), axis=-1))
+
+if __name__=='__main__':
+    np.random.seed(42)
+    model = Sequential()
+    model.add(Conv2D(32, kernel_size=(5, 5), strides=(1, 1),
+                     activation='relu',
+                     input_shape=input_shape))
+    model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
+    model.add(Conv2D(64, (5, 5), activation='relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Flatten())
+    model.add(Dense(1000, activation='relu'))
+    model.add(Dense(1, activation='softmax', kernel_initializer='normal'))
+
+    model.compile(loss='mse', optimizer='adam', metrics=[rmse, 'mean_squared_error'])
+    if not os.path.exists('{}/weights'.format(CUSTOM_SAVE_PATH)):
+        os.makedirs("{}/weights".format(CUSTOM_SAVE_PATH))
+    
+    filepath= CUSTOM_SAVE_PATH + "/weights/rotationreg-weights-improvement-{epoch:02d}-{val_acc:.2f}.hdf5"
+    checkpoint = ModelCheckpoint(filepath, monitor='val_acc', verbose=1, save_best_only=True, mode='max')
+    tensorboard = TensorBoard(log_dir='{}/logs/rotation-reg-{}'.format(CUSTOM_SAVE_PATH, time()))#, histogram_freq=1, write_grads=True, batch_size=BATCH_SIZE)
+
+    # Fit
+    model.fit_generator(generate_dataset(), steps_per_epoch=STEPS_PER_EPOCH,
+                        validation_data=generate_dataset(path='sorted_faces/valid'),
+                        validation_steps=30,
+                        epochs=EPOCHS, callbacks=[tensorboard, checkpoint])
+
+    save(model, path=CUSTOM_SAVE_PATH, model_name='rotation_regressor')
+
