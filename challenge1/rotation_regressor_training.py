@@ -82,8 +82,8 @@ if __name__=='__main__':
     if not os.path.exists('{}/weights'.format(CUSTOM_SAVE_PATH)):
         os.makedirs("{}/weights".format(CUSTOM_SAVE_PATH))
     
-    filepath= CUSTOM_SAVE_PATH + "/weights/rotationreg-weights-improvement-{epoch:02d}-{val_acc:.2f}.hdf5"
-    checkpoint = ModelCheckpoint(filepath, monitor='val_acc', verbose=1, save_best_only=True, mode='max')
+    filepath= CUSTOM_SAVE_PATH + "/weights/rotationreg-weights-improvement-{epoch:02d}-{val_mse:.2f}.hdf5"
+    checkpoint = ModelCheckpoint(filepath, monitor='val_mse', verbose=1, save_best_only=True, mode='max')
     tensorboard = TensorBoard(log_dir='{}/logs/rotation-reg-{}'.format(CUSTOM_SAVE_PATH, time()))#, histogram_freq=1, write_grads=True, batch_size=BATCH_SIZE)
 
     # Fit
