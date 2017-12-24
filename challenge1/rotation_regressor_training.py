@@ -28,35 +28,23 @@ def preprocess_input(x):
     return x
 
 def generate_dataset(path='sorted_faces/train', mode='train'):
-    datagen_openu = ImageDataGenerator(
-            width_shift_range=0.1,
-            height_shift_range=0.1,
-            #rotation_range=30,
-            horizontal_flip=True,
-            #fill_mode='nearest'
-            #fill_mode='constant',
-            #cval=0.,
-            )
     while 1:
         with open('{}/{}_info.txt'.format(path, mode), 'r') as info:
             batch_step = 0
-            # memory optimization
             X = np.empty([BATCH_SIZE, 299, 299, 3])
             Y = np.empty([BATCH_SIZE], dtype='uint8')
             for line in info:
                 angle = np.random.uniform(-90, 90)
+                #angle = np.random.randint(-90, 90)
                 img_name, gender, age = line.split(' ; ')
                 img = load_img('{}/all/{}'.format(path, img_name), target_size=(299, 299))
                 x = img_to_array(img)
-                img=rotate(x, angle, mode='nearest', reshape=False)
+                x = rotate(x, angle, mode='nearest', reshape=False)
                 X[batch_step] = x
                 Y[batch_step] = angle
                 batch_step += 1
 
                 if batch_step == BATCH_SIZE:
-                    X, Y = datagen_openu.flow(x=X, y=Y, batch_size=BATCH_SIZE,
-                            #save_to_dir='sorted_faces/gen'
-                            ).next()
                     yield (preprocess_input(X), Y)
                     batch_step = 0
                     X = np.empty([BATCH_SIZE, 299, 299, 3])
@@ -68,11 +56,11 @@ def rmse(y_true, y_pred):
 if __name__=='__main__':
     np.random.seed(42)
     model = Sequential()
-    model.add(Conv2D(8, kernel_size=(5, 5), strides=(1, 1),
+    model.add(Conv2D(16, kernel_size=(5, 5), strides=(1, 1),
                      activation='relu',
                      input_shape=input_shape))
     model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
-    model.add(Conv2D(16, (3, 3), activation='relu'))
+    model.add(Conv2D(32, (3, 3), activation='relu'))
     model.add(MaxPooling2D(pool_size=(2, 2)))
     model.add(Flatten())
     model.add(Dense(150, activation='relu'))
@@ -82,8 +70,8 @@ if __name__=='__main__':
     if not os.path.exists('{}/weights'.format(CUSTOM_SAVE_PATH)):
         os.makedirs("{}/weights".format(CUSTOM_SAVE_PATH))
     
-    filepath= CUSTOM_SAVE_PATH + "/weights/rotationreg-weights-improvement-{epoch:02d}-{val_mse:.2f}.hdf5"
-    checkpoint = ModelCheckpoint(filepath, monitor='val_mse', verbose=1, save_best_only=True, mode='max')
+    filepath= CUSTOM_SAVE_PATH + "/weights/rotationreg-weights-improvement-{epoch:02d}-{val_loss:.2f}.hdf5"
+    checkpoint = ModelCheckpoint(filepath, monitor='val_loss', verbose=1, save_best_only=True, mode='max')
     tensorboard = TensorBoard(log_dir='{}/logs/rotation-reg-{}'.format(CUSTOM_SAVE_PATH, time()))#, histogram_freq=1, write_grads=True, batch_size=BATCH_SIZE)
 
     # Fit
