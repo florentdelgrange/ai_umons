@@ -11,12 +11,18 @@ from keras.utils.np_utils import to_categorical
 from keras.callbacks import TensorBoard
 from keras.models import model_from_json
 from keras.callbacks import ModelCheckpoint
+from scipy.io import loadmat
 
-EPOCHS = 42
-BATCH_SIZE = 32
-STEPS_PER_EPOCH = 9146 // BATCH_SIZE
+EPOCHS = 21
+BATCH_SIZE = 20
+STEPS_PER_EPOCH = 72474// BATCH_SIZE
 gender_dict = {'m': 0, 'f' : 1}
-CUSTOM_SAVE_PATH = '.'
+CUSTOM_SAVE_PATH = '/home/florent/Dropbox/Info/ai_umons/challenge1'
+
+def load_data(mat_path):
+    d = loadmat(mat_path)
+
+    return d["image"], d["gender"][0], d["age"][0], d["db"][0], d["img_size"][0, 0], d["min_score"][0, 0]
 
 def save(model, path='.', model_name='xception_gender'):
     # serialize model to JSON
@@ -37,8 +43,8 @@ def preprocess_input(x):
 
 def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
     datagen_openu = ImageDataGenerator(
-            width_shift_range=0.1,
-            height_shift_range=0.1,
+            width_shift_range=0.3,
+            height_shift_range=0.3,
             #rotation_range=30,
             horizontal_flip=True,
             #fill_mode='nearest'
@@ -47,6 +53,33 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
             )
 
     while 1:
+        if os.path.exists('./wiki'):
+            if mode == 'train':
+                for i in range(9):
+                    image, gender, age, _, _, _ = load_data('wiki/wiki-part{}.mat'.format(i))
+                    part = int(len(image)/BATCH_SIZE)
+                    for j in range(part):
+                        X = image[j*BATCH_SIZE : j + BATCH_SIZE]
+                        #in the databse : 0 for female, 1 for male
+                        Y = [(y + 1) % 2 for y in image[j*part : j + BATCH_SIZE]]
+                        if rotations:
+                            X, Y = datagen_openu.flow(x=X, y=Y, batch_size=BATCH_SIZE,
+                                    #save_to_dir='sorted_faces/gen'
+                                    ).next()
+                        yield (preprocess_input(X), Y)
+            elif mode == 'valid':
+                image, gender, age, _, _, _ = load_data('wiki/wiki-part{}.mat'.format(9))
+                part = int(len(image)/BATCH_SIZE)
+                for j in range(part):
+                    X = image[j*BATCH_SIZE : j + BATCH_SIZE]
+                    #in the databse : 0 for female, 1 for male
+                    Y = [(y + 1) % 2 for y in image[j*part : j + BATCH_SIZE]]
+                    if rotations:
+                        X, Y = datagen_openu.flow(x=X, y=Y, batch_size=BATCH_SIZE,
+                                #save_to_dir='sorted_faces/gen'
+                                ).next()
+                    yield (preprocess_input(X), Y)
+
         with open('{}/{}_info.txt'.format(path, mode), 'r') as info:
             batch_step = 0
             # memory optimization
@@ -69,6 +102,8 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
                     batch_step = 0
                     X = np.empty([BATCH_SIZE, 299, 299, 3])
                     Y = np.empty([BATCH_SIZE], dtype='uint8')
+
+
 
 def fine_tuning(weights):
     # load json and create model
