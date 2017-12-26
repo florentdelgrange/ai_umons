@@ -58,6 +58,7 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
         if os.path.exists(MAT_PATH):
             if mode == 'train':
                 for i in range(9):
+                    print("Training on Wiki data base : part. {}".format(i))
                     image, gender, age, _, _, _ = load_data('{}/wiki-part{}.mat'.format(MAT_PATH, i))
                     part = len(image) // BATCH_SIZE
                     for j in range(part):
@@ -71,6 +72,7 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
                         #Image.fromarray(np.array(X[0], dtype='uint8')).show()
                         yield (preprocess_input(X), Y)
             elif mode == 'valid':
+                print("Validation on Wiki")
                 image, gender, age, _, _, _ = load_data('{}/wiki-part{}.mat'.format(MAT_PATH, 9))
                 part = int(len(image)/BATCH_SIZE)
                 for j in range(part):
@@ -84,6 +86,7 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
                     yield (preprocess_input(X), Y)
 
         with open('{}/{}_info.txt'.format(path, mode), 'r') as info:
+            print("Training and validation on OpenU database")
             batch_step = 0
             # memory optimization
             X = np.empty([BATCH_SIZE, 299, 299, 3])
