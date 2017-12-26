@@ -15,9 +15,10 @@ from scipy.io import loadmat
 
 EPOCHS = 21
 BATCH_SIZE = 20
-STEPS_PER_EPOCH = 72474// BATCH_SIZE
+STEPS_PER_EPOCH = 72474 // BATCH_SIZE
 gender_dict = {'m': 0, 'f' : 1}
-CUSTOM_SAVE_PATH = '/home/florent/Dropbox/Info/ai_umons/challenge1'
+CUSTOM_SAVE_PATH = '.'
+MAT_PATH = '/Volumes/Seagate Backup Plus Drive/ai_umons/age-gender-estimation-master/data'
 
 def load_data(mat_path):
     d = loadmat(mat_path)
@@ -53,27 +54,27 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
             )
 
     while 1:
-        if os.path.exists('./wiki'):
+        if os.path.exists(MAT_PATH):
             if mode == 'train':
                 for i in range(9):
-                    image, gender, age, _, _, _ = load_data('wiki/wiki-part{}.mat'.format(i))
-                    part = int(len(image)/BATCH_SIZE)
+                    image, gender, age, _, _, _ = load_data('{}/wiki-part{}.mat'.format(MAT_PATH, i))
+                    part = len(image) // BATCH_SIZE
                     for j in range(part):
-                        X = image[j*BATCH_SIZE : j + BATCH_SIZE]
+                        X = image[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]
                         #in the databse : 0 for female, 1 for male
-                        Y = [(y + 1) % 2 for y in image[j*part : j + BATCH_SIZE]]
+                        Y = np.array([(y + 1) % 2 for y in gender[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]])
                         if rotations:
                             X, Y = datagen_openu.flow(x=X, y=Y, batch_size=BATCH_SIZE,
                                     #save_to_dir='sorted_faces/gen'
                                     ).next()
                         yield (preprocess_input(X), Y)
             elif mode == 'valid':
-                image, gender, age, _, _, _ = load_data('wiki/wiki-part{}.mat'.format(9))
+                image, gender, age, _, _, _ = load_data('{}/wiki-part{}.mat'.format(MAT_PATH, 9))
                 part = int(len(image)/BATCH_SIZE)
                 for j in range(part):
-                    X = image[j*BATCH_SIZE : j + BATCH_SIZE]
+                    X = image[j * BATCH_SIZE : j * BATCH_SIZE + BATCH_SIZE]
                     #in the databse : 0 for female, 1 for male
-                    Y = [(y + 1) % 2 for y in image[j*part : j + BATCH_SIZE]]
+                    Y = [(y + 1) % 2 for y in gender[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]]
                     if rotations:
                         X, Y = datagen_openu.flow(x=X, y=Y, batch_size=BATCH_SIZE,
                                 #save_to_dir='sorted_faces/gen'
@@ -102,7 +103,6 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
                     batch_step = 0
                     X = np.empty([BATCH_SIZE, 299, 299, 3])
                     Y = np.empty([BATCH_SIZE], dtype='uint8')
-
 
 
 def fine_tuning(weights):
