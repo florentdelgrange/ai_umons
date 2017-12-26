@@ -43,6 +43,12 @@ def preprocess_input(x):
     return x
 
 def generate_dataset(path='sorted_faces/train', mode='train'):
+    datagen_openu = ImageDataGenerator(
+            #width_shift_range=0.3,
+            #height_shift_range=0.3,
+            zoom_range=0.3,
+            fill_mode='nearest'
+            )
     while 1:
         with open('{}/{}_info.txt'.format(path, mode), 'r') as info:
             batch_step = 0
@@ -62,6 +68,7 @@ def generate_dataset(path='sorted_faces/train', mode='train'):
                 batch_step += 1
 
                 if batch_step == BATCH_SIZE:
+                    X, Y = datagen_openu.flow(x=X, y=Y, batch_size=BATCH_SIZE).next()
                     #PIL.Image.fromarray(np.array(X[0], dtype='uint8')).show()
                     #print(Y[0])
                     yield (preprocess_input(X), Y)
