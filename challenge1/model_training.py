@@ -12,10 +12,11 @@ from keras.callbacks import TensorBoard
 from keras.models import model_from_json
 from keras.callbacks import ModelCheckpoint
 from scipy.io import loadmat
+#from PIL import Image
 
 EPOCHS = 21
 BATCH_SIZE = 20
-STEPS_PER_EPOCH = 72474 // BATCH_SIZE
+STEPS_PER_EPOCH = 72474 // (10 * BATCH_SIZE)
 gender_dict = {'m': 0, 'f' : 1}
 CUSTOM_SAVE_PATH = '.'
 MAT_PATH = '/Volumes/Seagate Backup Plus Drive/ai_umons/age-gender-estimation-master/data'
@@ -49,8 +50,6 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
             #rotation_range=30,
             horizontal_flip=True,
             #fill_mode='nearest'
-            #fill_mode='constant',
-            #cval=0.,
             )
 
     while 1:
@@ -67,6 +66,7 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
                             X, Y = datagen_openu.flow(x=X, y=Y, batch_size=BATCH_SIZE,
                                     #save_to_dir='sorted_faces/gen'
                                     ).next()
+                        #Image.fromarray(np.array(X[0], dtype='uint8')).show()
                         yield (preprocess_input(X), Y)
             elif mode == 'valid':
                 image, gender, age, _, _, _ = load_data('{}/wiki-part{}.mat'.format(MAT_PATH, 9))
