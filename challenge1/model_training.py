@@ -45,9 +45,10 @@ def preprocess_input(x):
 
 def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
     datagen_openu = ImageDataGenerator(
-            width_shift_range=0.3,
-            height_shift_range=0.3,
+            width_shift_range=0.1,
+            height_shift_range=0.1,
             #rotation_range=30,
+            zoom_range=0.3,
             horizontal_flip=True,
             #fill_mode='nearest'
             )
