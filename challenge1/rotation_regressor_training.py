@@ -47,7 +47,7 @@ def generate_dataset(path='sorted_faces/train', mode='train'):
         with open('{}/{}_info.txt'.format(path, mode), 'r') as info:
             batch_step = 0
             X = np.empty([BATCH_SIZE, 299, 299, 3])
-            Y = np.empty([BATCH_SIZE], dtype='uint8')
+            Y = np.empty([BATCH_SIZE])
             for line in info:
                 angle = np.random.uniform(-90, 90)
                 #angle = np.random.randint(-90, 90)
@@ -62,10 +62,12 @@ def generate_dataset(path='sorted_faces/train', mode='train'):
                 batch_step += 1
 
                 if batch_step == BATCH_SIZE:
+                    #PIL.Image.fromarray(np.array(X[0], dtype='uint8')).show()
+                    #print(Y[0])
                     yield (preprocess_input(X), Y)
                     batch_step = 0
                     X = np.empty([BATCH_SIZE, 299, 299, 3])
-                    Y = np.empty([BATCH_SIZE], dtype='uint8')
+                    Y = np.empty([BATCH_SIZE])
 
 def rmse(y_true, y_pred):
     return backend.sqrt(backend.mean(backend.square(y_pred - y_true), axis=-1))
