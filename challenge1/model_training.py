@@ -12,7 +12,8 @@ from keras.callbacks import TensorBoard
 from keras.models import model_from_json
 from keras.callbacks import ModelCheckpoint
 from scipy.io import loadmat
-#from PIL import Image
+from PIL import Image
+import cv2
 
 EPOCHS = 21
 BATCH_SIZE = 20
@@ -60,7 +61,7 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
                     image, gender, age, _, _, _ = load_data('{}/wiki-part{}.mat'.format(MAT_PATH, i))
                     part = len(image) // BATCH_SIZE
                     for j in range(part):
-                        X = image[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]
+                        X = np.array([cv2.cvtColor(x, cv2.COLOR_BGR2RGB) for x in image[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]])
                         #in the databse : 0 for female, 1 for male
                         Y = np.array([(y + 1) % 2 for y in gender[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]])
                         if rotations:
@@ -73,7 +74,7 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
                 image, gender, age, _, _, _ = load_data('{}/wiki-part{}.mat'.format(MAT_PATH, 9))
                 part = int(len(image)/BATCH_SIZE)
                 for j in range(part):
-                    X = image[j * BATCH_SIZE : j * BATCH_SIZE + BATCH_SIZE]
+                    X = np.array([cv2.cvtColor(x, cv2.COLOR_BGR2RGB) for x in image[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]])
                     #in the databse : 0 for female, 1 for male
                     Y = [(y + 1) % 2 for y in gender[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]]
                     if rotations:
