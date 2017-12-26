@@ -1,3 +1,16 @@
+"""Train a deep neural network for genre classification, based on Xception
+
+Usage:
+    model_training.py [--mode=<mode_name>] [--weights <path_to_weights>]
+    model_training.py (-h | --help)
+
+Options:
+-h --help                                    Display help.
+--load_model <model_name>                    Train a model already saved.
+--mode=<mode_name>                           Choose the training mode (init, main-training, fine-tuning ) [default : init].
+--weights <path_to_weights>                  Load pre-trained weights (from a checkpoint, for example).
+
+"""
 import os
 import sys
 #from keras.applications.inception_resnet_v2 import InceptionResNetV2
@@ -14,8 +27,9 @@ from keras.callbacks import ModelCheckpoint
 from scipy.io import loadmat
 from PIL import Image
 import cv2
+from docopt import docopt
 
-EPOCHS = 21
+EPOCHS = 42
 BATCH_SIZE = 20
 STEPS_PER_EPOCH = 72474 // (10 * BATCH_SIZE)
 gender_dict = {'m': 0, 'f' : 1}
@@ -55,38 +69,8 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
             )
 
     while 1:
-        if os.path.exists(MAT_PATH):
-            if mode == 'train':
-                for i in range(9):
-                    print("Training on Wiki data base : part. {}".format(i))
-                    image, gender, age, _, _, _ = load_data('{}/wiki-part{}.mat'.format(MAT_PATH, i))
-                    part = len(image) // BATCH_SIZE
-                    for j in range(part):
-                        X = np.array([cv2.cvtColor(x, cv2.COLOR_BGR2RGB) for x in image[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]])
-                        #in the databse : 0 for female, 1 for male
-                        Y = np.array([(y + 1) % 2 for y in gender[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]])
-                        if rotations:
-                            X, Y = datagen_openu.flow(x=X, y=Y, batch_size=BATCH_SIZE,
-                                    #save_to_dir='sorted_faces/gen'
-                                    ).next()
-                        #Image.fromarray(np.array(X[0], dtype='uint8')).show()
-                        yield (preprocess_input(X), Y)
-            elif mode == 'valid':
-                print("Validation on Wiki")
-                image, gender, age, _, _, _ = load_data('{}/wiki-part{}.mat'.format(MAT_PATH, 9))
-                part = int(len(image)/BATCH_SIZE)
-                for j in range(part):
-                    X = np.array([cv2.cvtColor(x, cv2.COLOR_BGR2RGB) for x in image[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]])
-                    #in the databse : 0 for female, 1 for male
-                    Y = [(y + 1) % 2 for y in gender[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]]
-                    if rotations:
-                        X, Y = datagen_openu.flow(x=X, y=Y, batch_size=BATCH_SIZE,
-                                #save_to_dir='sorted_faces/gen'
-                                ).next()
-                    yield (preprocess_input(X), Y)
-
         with open('{}/{}_info.txt'.format(path, mode), 'r') as info:
-            print("Training and validation on OpenU database")
+            print("\nTraining and validation on OpenU database")
             batch_step = 0
             # memory optimization
             X = np.empty([BATCH_SIZE, 299, 299, 3])
@@ -109,8 +93,39 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
                     X = np.empty([BATCH_SIZE, 299, 299, 3])
                     Y = np.empty([BATCH_SIZE], dtype='uint8')
 
+        if os.path.exists(MAT_PATH):
+            if mode == 'train':
+                for i in range(9):
+                    print("\nTraining on Wiki data base : part. {}".format(i))
+                    image, gender, age, _, _, _ = load_data('{}/wiki-part{}.mat'.format(MAT_PATH, i))
+                    part = len(image) // BATCH_SIZE
+                    for j in range(part):
+                        X = np.array([cv2.cvtColor(x, cv2.COLOR_BGR2RGB) for x in image[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]])
+                        #in the databse : 0 for female, 1 for male
+                        Y = np.array([(y + 1) % 2 for y in gender[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]])
+                        if rotations:
+                            X, Y = datagen_openu.flow(x=X, y=Y, batch_size=BATCH_SIZE,
+                                    #save_to_dir='sorted_faces/gen'
+                                    ).next()
+                        #Image.fromarray(np.array(X[0], dtype='uint8')).show()
+                        yield (preprocess_input(X), Y)
+            elif mode == 'valid':
+                print("\nValidation on Wiki")
+                image, gender, age, _, _, _ = load_data('{}/wiki-part{}.mat'.format(MAT_PATH, 9))
+                part = int(len(image)/BATCH_SIZE)
+                for j in range(part):
+                    X = np.array([cv2.cvtColor(x, cv2.COLOR_BGR2RGB) for x in image[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]])
+                    #in the databse : 0 for female, 1 for male
+                    Y = [(y + 1) % 2 for y in gender[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]]
+                    if rotations:
+                        X, Y = datagen_openu.flow(x=X, y=Y, batch_size=BATCH_SIZE,
+                                #save_to_dir='sorted_faces/gen'
+                                ).next()
+                    yield (preprocess_input(X), Y)
 
-def fine_tuning(weights):
+
+
+def fine_tuning(weights=''):
     # load json and create model
     json_file = open('{}/models/robust_xception_gender.json'.format(CUSTOM_SAVE_PATH), 'r')
     loaded_model_json = json_file.read()
@@ -258,25 +273,10 @@ if __name__ == '__main__':
         os.makedirs("{}/logs".format(CUSTOM_SAVE_PATH))
     if not os.path.exists('{}/models'.format(CUSTOM_SAVE_PATH)):
         os.makedirs("{}/models".format(CUSTOM_SAVE_PATH))
-    mode = ''
-    weights = ''
 
-    if len(sys.argv) > 1:
-        if '--mode=' in ''.join(sys.argv[1:]):
-            mode = list(map(lambda x: x.split('--mode=')[1],
-                    filter(lambda s: s[:7]=='--mode=',
-                        sys.argv[1:])))
-            if len(mode) > 1:
-                raise TooManyArgumentsError("Too many arguments with --mode option")
-            mode = mode[0]
-
-            weights_to_load = False
-            for s in sys.argv[1:]:
-                if weights_to_load:
-                    weights = s
-                    break
-                elif s[:7] == '--mode=':
-                    weights_to_load = True
+    args = docopt(__doc__)
+    mode = args['--mode']
+    weights = args['--weights']
 
     if mode == 'fine-tuning':
         fine_tuning(weights)
