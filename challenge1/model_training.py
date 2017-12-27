@@ -1,3 +1,18 @@
+"""Train a deep neural network for genre classification, based on Xception
+
+Usage:
+    model_training.py [--mode=<mode_name>] [--weights <path_to_weights>] [--wiki_shift <i>] [--openu]
+    model_training.py (-h | --help)
+
+Options:
+-h --help                                    Display help.
+--load_model <model_name>                    Train a model already saved.
+--mode=<mode_name>                           Choose the training mode (init, main-training, fine-tuning ) [default : init].
+--weights <path_to_weights>                  Load pre-trained weights (from a checkpoint, for example).
+--wiki_shift <i>                             Data set shift [default : 0]
+--openu                                      Force the first epoch to be trained with openu database.
+
+"""
 import os
 import sys
 #from keras.applications.inception_resnet_v2 import InceptionResNetV2
@@ -12,14 +27,16 @@ from keras.callbacks import TensorBoard
 from keras.models import model_from_json
 from keras.callbacks import ModelCheckpoint
 from scipy.io import loadmat
-#from PIL import Image
+from PIL import Image
+import cv2
+from docopt import docopt
 
-EPOCHS = 21
+EPOCHS = 50
 BATCH_SIZE = 20
-STEPS_PER_EPOCH = 72474 // (10 * BATCH_SIZE)
+STEPS_PER_EPOCH = 3600 // BATCH_SIZE
 gender_dict = {'m': 0, 'f' : 1}
-CUSTOM_SAVE_PATH = '.'
-MAT_PATH = '/Volumes/Seagate Backup Plus Drive/ai_umons/age-gender-estimation-master/data'
+CUSTOM_SAVE_PATH = '/home/florent/Dropbox/Info/ai_umons/challenge1'
+MAT_PATH = 'wiki'
 
 def load_data(mat_path):
     d = loadmat(mat_path)
@@ -50,17 +67,22 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
             #rotation_range=30,
             zoom_range=0.3,
             horizontal_flip=True,
-            #fill_mode='nearest'
             )
+    
+    args = docopt(__doc__)
+    shift = int(args['--wiki_shift'])
 
     while 1:
-        if os.path.exists(MAT_PATH):
+        # Wikipedia dataset
+        if os.path.exists(MAT_PATH) and not args['--openu']:
             if mode == 'train':
                 for i in range(9):
-                    image, gender, age, _, _, _ = load_data('{}/wiki-part{}.mat'.format(MAT_PATH, i))
+                    i = (i + shift) % 9
+                    print("\nTraining on Wiki data base : part. {}".format(i))
+                    image, gender, _, _, _, _ = load_data('{}/wiki-part{}.mat'.format(MAT_PATH, i))
                     part = len(image) // BATCH_SIZE
                     for j in range(part):
-                        X = image[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]
+                        X = np.array([cv2.cvtColor(x, cv2.COLOR_BGR2RGB) for x in image[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]])
                         #in the databse : 0 for female, 1 for male
                         Y = np.array([(y + 1) % 2 for y in gender[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]])
                         if rotations:
@@ -69,11 +91,19 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
                                     ).next()
                         #Image.fromarray(np.array(X[0], dtype='uint8')).show()
                         yield (preprocess_input(X), Y)
+                        X, Y = None, None
+
+                    image, gender = None, None
+
+                    if i == 8:
+                        break
+
             elif mode == 'valid':
-                image, gender, age, _, _, _ = load_data('{}/wiki-part{}.mat'.format(MAT_PATH, 9))
+                print("\nValidation on Wiki")
+                image, gender, _, _, _, _ = load_data('{}/wiki-part{}.mat'.format(MAT_PATH, 9))
                 part = int(len(image)/BATCH_SIZE)
                 for j in range(part):
-                    X = image[j * BATCH_SIZE : j * BATCH_SIZE + BATCH_SIZE]
+                    X = np.array([cv2.cvtColor(x, cv2.COLOR_BGR2RGB) for x in image[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]])
                     #in the databse : 0 for female, 1 for male
                     Y = [(y + 1) % 2 for y in gender[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]]
                     if rotations:
@@ -81,8 +111,13 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
                                 #save_to_dir='sorted_faces/gen'
                                 ).next()
                     yield (preprocess_input(X), Y)
+                    X, Y = None, None
 
+                image, gender = None, None
+        
+        # OpenU Dataset
         with open('{}/{}_info.txt'.format(path, mode), 'r') as info:
+            print("\nTraining and validation on OpenU database")
             batch_step = 0
             # memory optimization
             X = np.empty([BATCH_SIZE, 299, 299, 3])
@@ -105,8 +140,11 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
                     X = np.empty([BATCH_SIZE, 299, 299, 3])
                     Y = np.empty([BATCH_SIZE], dtype='uint8')
 
+        args['--openu'] = False
 
-def fine_tuning(weights):
+
+
+def fine_tuning(weights=''):
     # load json and create model
     json_file = open('{}/models/robust_xception_gender.json'.format(CUSTOM_SAVE_PATH), 'r')
     loaded_model_json = json_file.read()
@@ -176,6 +214,10 @@ def main_training(weights=''):
     # this is the model we will train
     model = Model(inputs=base_model.input, outputs=predictions)
 
+    if weights:
+        model.load_weights(weights)
+        print('weights ({}) loaded !'.format(weights))
+
     for layer in model.layers[:115]:
        layer.trainable = False
     for layer in model.layers[115:]:
@@ -192,7 +234,7 @@ def main_training(weights=''):
 
     filepath= CUSTOM_SAVE_PATH + "/weights/main_training_weights-improvement-{epoch:02d}-{val_acc:.2f}.hdf5"
     checkpoint = ModelCheckpoint(filepath, monitor='val_acc', verbose=1, save_best_only=True, mode='max')
-    tensorboard = TensorBoard(log_dir='{}/logs/{}'.format(CUSTOM_SAVE_PATH, time()))#, histogram_freq=1, write_grads=True, batch_size=BATCH_SIZE)
+    tensorboard = TensorBoard(log_dir='{}/logs/gender{}'.format(CUSTOM_SAVE_PATH, time()))#, histogram_freq=1, write_grads=True, batch_size=BATCH_SIZE)
 
     # Fit
     model.fit_generator(generate_dataset(rotations=True), steps_per_epoch=STEPS_PER_EPOCH,
@@ -254,25 +296,10 @@ if __name__ == '__main__':
         os.makedirs("{}/logs".format(CUSTOM_SAVE_PATH))
     if not os.path.exists('{}/models'.format(CUSTOM_SAVE_PATH)):
         os.makedirs("{}/models".format(CUSTOM_SAVE_PATH))
-    mode = ''
-    weights = ''
 
-    if len(sys.argv) > 1:
-        if '--mode=' in ''.join(sys.argv[1:]):
-            mode = list(map(lambda x: x.split('--mode=')[1],
-                    filter(lambda s: s[:7]=='--mode=',
-                        sys.argv[1:])))
-            if len(mode) > 1:
-                raise TooManyArgumentsError("Too many arguments with --mode option")
-            mode = mode[0]
-
-            weights_to_load = False
-            for s in sys.argv[1:]:
-                if weights_to_load:
-                    weights = s
-                    break
-                elif s[:7] == '--mode=':
-                    weights_to_load = True
+    args = docopt(__doc__)
+    mode = args['--mode']
+    weights = args['--weights']
 
     if mode == 'fine-tuning':
         fine_tuning(weights)
