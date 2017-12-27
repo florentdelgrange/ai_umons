@@ -1,7 +1,7 @@
 """Train a deep neural network for genre classification, based on Xception
 
 Usage:
-    model_training.py [--mode=<mode_name>] [--weights <path_to_weights>] [--wiki_shift <i>] [--openu]
+    model_training.py [--mode=<mode_name>] [--weights <path_to_weights>] [--wiki_shift=<i>]
     model_training.py (-h | --help)
 
 Options:
@@ -9,8 +9,7 @@ Options:
 --load_model <model_name>                    Train a model already saved.
 --mode=<mode_name>                           Choose the training mode (init, main-training, fine-tuning ) [default : init].
 --weights <path_to_weights>                  Load pre-trained weights (from a checkpoint, for example).
---wiki_shift <i>                             Data set shift [default : 0]
---openu                                      Force the first epoch to be trained with openu database.
+--wiki_shift=<i>                             Data set shift [default: 0]
 
 """
 import os
@@ -60,21 +59,44 @@ def preprocess_input(x):
     x *= 2.
     return x
 
+def load_openu_batch(info, path, datagen=None):
+    # OpenU Dataset
+    #with open('{}/{}_info.txt'.format(path, mode), 'r') as info:
+    X = np.empty([BATCH_SIZE, 299, 299, 3])
+    Y = np.empty([BATCH_SIZE], dtype='uint8')
+    for batch_step in range(BATCH_SIZE):
+        line = info.readline().strip()
+        if not line:
+            return None, None
+        img_name, gender, age = line.split(' ; ')
+        img = load_img('{}/all/{}'.format(path, img_name), target_size=(299, 299))
+        x = img_to_array(img)
+        X[batch_step] = x
+        Y[batch_step] = gender_dict[gender]
+
+        if batch_step == BATCH_SIZE - 1:
+            if datagen:
+                X, Y = datagen.flow(x=X, y=Y, batch_size=BATCH_SIZE,
+                        #save_to_dir='sorted_faces/gen'
+                        ).next()
+            return preprocess_input(X), Y
+
 def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
-    datagen_openu = ImageDataGenerator(
+    datagen = ImageDataGenerator(
             width_shift_range=0.1,
             height_shift_range=0.1,
             #rotation_range=30,
             zoom_range=0.3,
             horizontal_flip=True,
-            )
-    
+            ) if rotations else None
+
     args = docopt(__doc__)
     shift = int(args['--wiki_shift'])
 
-    while 1:
-        # Wikipedia dataset
-        if os.path.exists(MAT_PATH) and not args['--openu']:
+    try:
+        while 1:
+            info = open('{}/{}_info.txt'.format(path, mode), 'r')
+            assert os.path.exists(MAT_PATH)
             if mode == 'train':
                 for i in range(9):
                     i = (i + shift) % 9
@@ -82,11 +104,18 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
                     image, gender, _, _, _, _ = load_data('{}/wiki-part{}.mat'.format(MAT_PATH, i))
                     part = len(image) // BATCH_SIZE
                     for j in range(part):
+                        X, Y = load_openu_batch(info, path, datagen)
+                        if X is not None and Y is not None:
+                            yield(X, Y)
+                        else:
+                            info.close()
+                            info = open('{}/{}_info.txt'.format(path, mode), 'r')
+                        X, Y = None, None # free memory
                         X = np.array([cv2.cvtColor(x, cv2.COLOR_BGR2RGB) for x in image[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]])
                         #in the databse : 0 for female, 1 for male
-                        Y = np.array([(y + 1) % 2 for y in gender[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]])
+                        Y = np.array([(y + 1) % 2 for y in gender[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]], dtype='uint8')
                         if rotations:
-                            X, Y = datagen_openu.flow(x=X, y=Y, batch_size=BATCH_SIZE,
+                            X, Y = datagen.flow(x=X, y=Y, batch_size=BATCH_SIZE,
                                     #save_to_dir='sorted_faces/gen'
                                     ).next()
                         #Image.fromarray(np.array(X[0], dtype='uint8')).show()
@@ -95,53 +124,31 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
 
                     image, gender = None, None
 
-                    if i == 8:
-                        break
-
             elif mode == 'valid':
-                print("\nValidation on Wiki")
                 image, gender, _, _, _, _ = load_data('{}/wiki-part{}.mat'.format(MAT_PATH, 9))
                 part = int(len(image)/BATCH_SIZE)
                 for j in range(part):
+                    X, Y = load_openu_batch(info, datagen)
+                    if X is not None and Y is not None:
+                        yield(X, Y)
+                    else:
+                        info.close()
+                        info = open('{}/{}_info.txt'.format(path, mode), 'r')
+                    X, Y = None, None # free memory
                     X = np.array([cv2.cvtColor(x, cv2.COLOR_BGR2RGB) for x in image[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]])
                     #in the databse : 0 for female, 1 for male
-                    Y = [(y + 1) % 2 for y in gender[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]]
+                    Y = np.array([(y + 1) % 2 for y in gender[j * BATCH_SIZE : (j + 1) * BATCH_SIZE]], dtype='uint8')
                     if rotations:
-                        X, Y = datagen_openu.flow(x=X, y=Y, batch_size=BATCH_SIZE,
+                        X, Y = datagen.flow(x=X, y=Y, batch_size=BATCH_SIZE,
                                 #save_to_dir='sorted_faces/gen'
                                 ).next()
                     yield (preprocess_input(X), Y)
                     X, Y = None, None
 
                 image, gender = None, None
-        
-        # OpenU Dataset
-        with open('{}/{}_info.txt'.format(path, mode), 'r') as info:
-            print("\nTraining and validation on OpenU database")
-            batch_step = 0
-            # memory optimization
-            X = np.empty([BATCH_SIZE, 299, 299, 3])
-            Y = np.empty([BATCH_SIZE], dtype='uint8')
-            for line in info:
-                img_name, gender, age = line.split(' ; ')
-                img = load_img('{}/all/{}'.format(path, img_name), target_size=(299, 299))
-                x = img_to_array(img)
-                X[batch_step] = x
-                Y[batch_step] = gender_dict[gender]
-                batch_step += 1
-
-                if batch_step == BATCH_SIZE:
-                    if rotations:
-                        X, Y = datagen_openu.flow(x=X, y=Y, batch_size=BATCH_SIZE,
-                                #save_to_dir='sorted_faces/gen'
-                                ).next()
-                    yield (preprocess_input(X), Y)
-                    batch_step = 0
-                    X = np.empty([BATCH_SIZE, 299, 299, 3])
-                    Y = np.empty([BATCH_SIZE], dtype='uint8')
-
-        args['--openu'] = False
-
+    finally:
+        print("\nCancelled.\nOpenU dataset training file closed.\n")
+        info.close()
 
 def fine_tuning(weights=''):
     # load json and create model
@@ -182,7 +189,7 @@ def fine_tuning(weights=''):
     # Callbacks
     if not os.path.exists('{}/weights'.format(CUSTOM_SAVE_PATH)):
         os.makedirs("{}/weights".format(CUSTOM_SAVE_PATH))
-    
+
     filepath= CUSTOM_SAVE_PATH + "/weights/weights-improvement-{epoch:02d}-{val_acc:.2f}.hdf5"
     checkpoint = ModelCheckpoint(filepath, monitor='val_acc', verbose=1, save_best_only=True, mode='max')
     tensorboard = TensorBoard(log_dir='{}/logs/{}'.format(CUSTOM_SAVE_PATH, time()))#, histogram_freq=1, write_grads=True, batch_size=BATCH_SIZE)
