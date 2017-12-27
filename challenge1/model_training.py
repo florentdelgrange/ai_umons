@@ -128,7 +128,7 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
                 image, gender, _, _, _, _ = load_data('{}/wiki-part{}.mat'.format(MAT_PATH, 9))
                 part = int(len(image)/BATCH_SIZE)
                 for j in range(part):
-                    X, Y = load_openu_batch(info, datagen)
+                    X, Y = load_openu_batch(info, path, datagen)
                     if X is not None and Y is not None:
                         yield(X, Y)
                     else:
