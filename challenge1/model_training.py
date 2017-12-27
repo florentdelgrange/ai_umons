@@ -2,6 +2,7 @@
 
 Usage:
     model_training.py [--mode=<mode_name>] [--weights <path_to_weights>] [--wiki_shift=<i>]
+    model_training.py [--mode=<mode_name>] [--weights <path_to_weights>] [--memmaps_directory <path>]
     model_training.py (-h | --help)
 
 Options:
@@ -10,7 +11,10 @@ Options:
 --mode=<mode_name>                           Choose the training mode (init, main-training, fine-tuning ) [default : init].
 --weights <path_to_weights>                  Load pre-trained weights (from a checkpoint, for example).
 --wiki_shift=<i>                             Data set shift [default: 0]
+--memmaps_directory <path>                   Path to mmemaps directory. If this option is specified, the only dataset loaded is from the memmaps.
 
+
+Note : The memmaps have to be named (training|testing)_(images|genders|ages)
 """
 import os
 import sys
@@ -30,9 +34,9 @@ from PIL import Image
 import cv2
 from docopt import docopt
 
-EPOCHS = 50
-BATCH_SIZE = 20
-STEPS_PER_EPOCH = 3600 // BATCH_SIZE
+EPOCHS = 42
+BATCH_SIZE = 32
+STEPS_PER_EPOCH = 43390 // (10 * BATCH_SIZE)
 gender_dict = {'m': 0, 'f' : 1}
 CUSTOM_SAVE_PATH = '/home/florent/Dropbox/Info/ai_umons/challenge1'
 MAT_PATH = 'wiki'
@@ -54,6 +58,7 @@ def save(model, path='.', model_name='xception_gender'):
         save(model, path='.', model_name=model_name)
 
 def preprocess_input(x):
+    x = np.array(x, dtype=float)
     x /= 255.
     x -= 0.5
     x *= 2.
@@ -81,7 +86,9 @@ def load_openu_batch(info, path, datagen=None):
                         ).next()
             return preprocess_input(X), Y
 
-def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
+def generate_dataset_from_files(path='sorted_faces/train', mode='train', rotations=False):
+    args = docopt(__doc__)
+    shift = int(args['--wiki_shift'])
     datagen = ImageDataGenerator(
             width_shift_range=0.1,
             height_shift_range=0.1,
@@ -89,10 +96,6 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
             zoom_range=0.3,
             horizontal_flip=True,
             ) if rotations else None
-
-    args = docopt(__doc__)
-    shift = int(args['--wiki_shift'])
-
     try:
         while 1:
             info = open('{}/{}_info.txt'.format(path, mode), 'r')
@@ -149,6 +152,45 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
     finally:
         print("\nCancelled.\nOpenU dataset training file closed.\n")
         info.close()
+
+def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
+    datagen = ImageDataGenerator(
+            width_shift_range=0.1,
+            height_shift_range=0.1,
+            #rotation_range=30,
+            zoom_range=0.3,
+            horizontal_flip=True,
+            ) if rotations else None
+    args = docopt(__doc__)
+    if args['--memmaps_directory']:
+        while(1):
+            if mode == 'train':
+                length = 43390
+                X_train = np.memmap('{}/training_images'.format(args['--memmaps_directory']), dtype='uint8', mode='r', shape=(length, 299, 299, 3))
+                Y_train = np.memmap('{}/training_genders'.format(args['--memmaps_directory']), dtype='uint8', mode='r', shape=(length))
+                for i in range(length // BATCH_SIZE):
+                    X = np.array(X_train[i * BATCH_SIZE : (i + 1) * BATCH_SIZE], dtype='uint8')
+                    Y = np.array(Y_train[i * BATCH_SIZE : (i + 1) * BATCH_SIZE], dtype='uint8')
+                    if rotations:
+                        X, Y = datagen.flow(x=X, y=Y, batch_size=BATCH_SIZE,
+                                #save_to_dir='sorted_faces/gen'
+                                ).next()
+                    yield preprocess_input(X), Y
+            elif mode == 'valid':
+                length = 6943
+                X_test = np.memmap('{}/testing_images'.format(args['--memmaps_directory']), dtype='uint8', mode='r', shape=(length, 299, 299, 3))
+                Y_test = np.memmap('{}/testing_genders'.format(args['--memmaps_directory']), dtype='uint8', mode='r', shape=(length))
+                for i in range(length // BATCH_SIZE):
+                    X = np.array(X_test[i * BATCH_SIZE : (i + 1) * BATCH_SIZE], dtype='uint8')
+                    Y = np.array(Y_test[i * BATCH_SIZE : (i + 1) * BATCH_SIZE], dtype='uint8')
+                    if rotations:
+                        X, Y = datagen.flow(x=X, y=Y, batch_size=BATCH_SIZE,
+                                #save_to_dir='sorted_faces/gen'
+                                ).next()
+                    yield preprocess_input(X), Y
+    else :
+        generate_dataset_from_files(path, mode, rotations)
+
 
 def fine_tuning(weights=''):
     # load json and create model
