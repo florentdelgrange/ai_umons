@@ -1,13 +1,14 @@
 """Train a rotation regressor
 
 Usage:
-    rotation_regressor_training.py [--load_model <model_name>] [--add_dropout]
+    rotation_regressor_training.py [--mode=<mode_name>] [--load_model <model_name>] [--add_dropout]
     rotation_regressor_training.py (-h | --help)
 
 Options:
 -h --help                                    Display help.
 --load_model <model_name>                    Train a model already saved.
 --add_dropout                                Add Dropout Layer after the first pooling.
+--mode=<mode_name>                           Run the choosen mode (simple or fine-tuning) [default : simple] .
 
 """
 from keras.layers import Dense, Conv2D, MaxPooling2D, Flatten, GlobalAveragePooling2D, Dropout, Activation
@@ -111,8 +112,11 @@ if __name__=='__main__':
             model = model2
         model.summary()
 
-
-    model.compile(loss='mse', optimizer='nadam', metrics=[rmse, 'mean_squared_error'])
+    if args['--mode'] == 'fine-tuning':
+        from keras.optimizers import SGD
+        model.compile(loss='mse', optimizer=SGD(lr=0.0001, momentum=0.9), metrics=[rmse, 'mean_squared_error'])
+    else:
+        model.compile(loss='mse', optimizer='nadam', metrics=[rmse, 'mean_squared_error'])
     if not os.path.exists('{}/weights'.format(CUSTOM_SAVE_PATH)):
         os.makedirs("{}/weights".format(CUSTOM_SAVE_PATH))
     
@@ -126,5 +130,5 @@ if __name__=='__main__':
                         validation_steps=30,
                         epochs=EPOCHS, callbacks=[tensorboard, checkpoint])
 
-    save(model, path=CUSTOM_SAVE_PATH, model_name='rotation_regressor_2')
+    save(model, path=CUSTOM_SAVE_PATH, model_name='rotation_regressor_3')
 

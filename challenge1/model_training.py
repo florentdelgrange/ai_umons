@@ -143,7 +143,6 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
         args['--openu'] = False
 
 
-
 def fine_tuning(weights=''):
     # load json and create model
     json_file = open('{}/models/robust_xception_gender.json'.format(CUSTOM_SAVE_PATH), 'r')
