@@ -29,9 +29,9 @@ from PIL import Image
 import cv2
 from docopt import docopt
 
-EPOCHS = 42
+EPOCHS = 50
 BATCH_SIZE = 20
-STEPS_PER_EPOCH = 72474 // (10 * BATCH_SIZE)
+STEPS_PER_EPOCH = 3600 // BATCH_SIZE
 gender_dict = {'m': 0, 'f' : 1}
 CUSTOM_SAVE_PATH = '.'
 MAT_PATH = '/Volumes/Seagate Backup Plus Drive/ai_umons/age-gender-estimation-master/data'
@@ -69,30 +69,7 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
             )
 
     while 1:
-        with open('{}/{}_info.txt'.format(path, mode), 'r') as info:
-            print("\nTraining and validation on OpenU database")
-            batch_step = 0
-            # memory optimization
-            X = np.empty([BATCH_SIZE, 299, 299, 3])
-            Y = np.empty([BATCH_SIZE], dtype='uint8')
-            for line in info:
-                img_name, gender, age = line.split(' ; ')
-                img = load_img('{}/all/{}'.format(path, img_name), target_size=(299, 299))
-                x = img_to_array(img)
-                X[batch_step] = x
-                Y[batch_step] = gender_dict[gender]
-                batch_step += 1
-
-                if batch_step == BATCH_SIZE:
-                    if rotations:
-                        X, Y = datagen_openu.flow(x=X, y=Y, batch_size=BATCH_SIZE,
-                                #save_to_dir='sorted_faces/gen'
-                                ).next()
-                    yield (preprocess_input(X), Y)
-                    batch_step = 0
-                    X = np.empty([BATCH_SIZE, 299, 299, 3])
-                    Y = np.empty([BATCH_SIZE], dtype='uint8')
-
+        # Wikipedia dataset
         if os.path.exists(MAT_PATH):
             if mode == 'train':
                 for i in range(9):
@@ -122,6 +99,30 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
                                 #save_to_dir='sorted_faces/gen'
                                 ).next()
                     yield (preprocess_input(X), Y)
+        # OpenU Dataset
+        with open('{}/{}_info.txt'.format(path, mode), 'r') as info:
+            print("\nTraining and validation on OpenU database")
+            batch_step = 0
+            # memory optimization
+            X = np.empty([BATCH_SIZE, 299, 299, 3])
+            Y = np.empty([BATCH_SIZE], dtype='uint8')
+            for line in info:
+                img_name, gender, age = line.split(' ; ')
+                img = load_img('{}/all/{}'.format(path, img_name), target_size=(299, 299))
+                x = img_to_array(img)
+                X[batch_step] = x
+                Y[batch_step] = gender_dict[gender]
+                batch_step += 1
+
+                if batch_step == BATCH_SIZE:
+                    if rotations:
+                        X, Y = datagen_openu.flow(x=X, y=Y, batch_size=BATCH_SIZE,
+                                #save_to_dir='sorted_faces/gen'
+                                ).next()
+                    yield (preprocess_input(X), Y)
+                    batch_step = 0
+                    X = np.empty([BATCH_SIZE, 299, 299, 3])
+                    Y = np.empty([BATCH_SIZE], dtype='uint8')
 
 
 
@@ -194,6 +195,10 @@ def main_training(weights=''):
 
     # this is the model we will train
     model = Model(inputs=base_model.input, outputs=predictions)
+
+    if weights:
+        model.load_weights(weights)
+        print('weights ({}) loaded !'.format(weights))
 
     for layer in model.layers[:115]:
        layer.trainable = False
