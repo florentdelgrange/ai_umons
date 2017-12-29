@@ -195,16 +195,27 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
 
 
 def fine_tuning(weights=''):
-    # load json and create model
-    json_file = open('{}/models/robust_xception_gender.json'.format(CUSTOM_SAVE_PATH), 'r')
-    loaded_model_json = json_file.read()
-    json_file.close()
-    model = model_from_json(loaded_model_json)
-    # load weights into new model
-    model.load_weights("{}/models/robust_xception_gender.h5".format(CUSTOM_SAVE_PATH))
+    print("model initialisation (Xception based) for fine tuning...")
+    base_model = Xception(include_top=False, input_shape=(299, 299, 3))
+
+    # let's visualize layer names and layer indices
+    for i, layer in enumerate(base_model.layers):
+       print(i, layer.name)
+
+    # add a global spatial average pooling layer
+    x = base_model.output
+    x = GlobalAveragePooling2D()(x)
+    # let's add two fully-connected layer
+    x = Dense(299, activation='relu')(x)
+    # and a logistic layer ; we have 2 classes
+    predictions = Dense(1, activation='sigmoid')(x)
+
+    # this is the model we will train
+    model = Model(inputs=base_model.input, outputs=predictions)
 
     if weights:
         model.load_weights(weights)
+        print('weights ({}) loaded !'.format(weights))
 
     # We will freeze the bottom N layers
     # and train the remaining top layers.
@@ -234,9 +245,9 @@ def fine_tuning(weights=''):
     if not os.path.exists('{}/weights'.format(CUSTOM_SAVE_PATH)):
         os.makedirs("{}/weights".format(CUSTOM_SAVE_PATH))
 
-    filepath= CUSTOM_SAVE_PATH + "/weights/weights-improvement-{epoch:02d}-{val_acc:.2f}.hdf5"
+    filepath= CUSTOM_SAVE_PATH + "/weights/fine_tuning_weights-{epoch:02d}-{val_acc:.2f}.hdf5"
     checkpoint = ModelCheckpoint(filepath, monitor='val_acc', verbose=1, save_best_only=True, mode='max')
-    tensorboard = TensorBoard(log_dir='{}/logs/{}'.format(CUSTOM_SAVE_PATH, time()))#, histogram_freq=1, write_grads=True, batch_size=BATCH_SIZE)
+    tensorboard = TensorBoard(log_dir='{}/logs/fine_tuning_gender{}'.format(CUSTOM_SAVE_PATH, time()))#, histogram_freq=1, write_grads=True, batch_size=BATCH_SIZE)
 
     # Fit
     model.fit_generator(generate_dataset(rotations=True), steps_per_epoch=STEPS_PER_EPOCH,
