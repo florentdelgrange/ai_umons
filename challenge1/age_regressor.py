@@ -1,8 +1,9 @@
-from keras.layers import Dense, Conv2D, MaxPooling2D, Concatenate, Flatten, GlobalAveragePooling2D, Dropout, Activation, Input, Lambda
+from keras.layers import Activation, Dense, Dot, Conv2D, MaxPooling2D, Concatenate, Flatten, GlobalAveragePooling2D, Dropout, Activation, Input, Lambda
 from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array, load_img
 from time import time
 from keras import backend
 import numpy as np
+from keras.applications.xception import Xception
 from keras.models import Model, Sequential
 from model_training import save
 from scipy.ndimage.interpolation import rotate
@@ -12,6 +13,7 @@ from keras.models import model_from_json
 from keras.callbacks import ModelCheckpoint
 from keras.applications.vgg19 import VGG19
 from docopt import docopt
+import tensorflow as tf
 import os
 import PIL.Image
 
@@ -82,12 +84,19 @@ if __name__=='__main__':
     gender_model = model_from_json(loaded_model_json)
     # load weights into new model
     gender_model.load_weights("{}/models/xception_gender.h5".format(CUSTOM_SAVE_PATH))
+    for layer in gender_model.layers:
+        layer.trainable = False
 
-    np.random.seed(42)
+    base_model = Xception(include_top=False, input_shape=(299, 299, 3))
+    for layer in base_model.layers[:95]:
+       layer.trainable = False
 
-    input = Input(shape=(299, 299, 3))
+    # add a global spatial average pooling layer
+    x = base_model.layers[95].output
+    #input = Input(shape=(299, 299, 3))
+    input = base_model.input
     x = Conv2D(16, kernel_size=(7, 7), strides=(1, 1),
-                     activation='relu')(input)
+                     activation='relu')(x)#(input)
     MaxPooling2D(pool_size=(2, 2), strides=(2, 2))(x)
     x = Conv2D(32, (5, 5), activation='relu')(x)
     x = MaxPooling2D(pool_size=(2, 2))(x)
@@ -101,20 +110,24 @@ if __name__=='__main__':
                      activation='relu')(x)
         y = MaxPooling2D(pool_size=(2, 2), strides=(2, 2))(y)
         y = Flatten()(y)
-        print(gender_model(input)[0][0])
         if i == 0:
-            y = Lambda(lambda x : (1 - gender_model(input)[0][0]) * x)(y)
+            y = Lambda(lambda x : (1 - gender_model(input)) * x)(y)
+            #y = Dot([0, 0])([Lambda(lambda x: 1 - x)(gender_model(input)), y])
         if i == 1:
-            y = Lambda(lambda x : gender_model(input)[0][0] * x)(y)
+            y = Lambda(lambda x : gender_model(input) * x)(y)
+            #y = Dot([0, 0])([gender_model(input), y])
         y = Dense(299, activation='relu')(y)
         subnets[i] = Dropout(0.15)(y)
-    x = Concatenate(subnets)
+    x = Concatenate()(subnets)
     x = Dense(100, activation='relu')(x)
-    x = Dense(1, activation='relu')(x)
-    prediction = Lambda(int)(x)
+    prediction = Dense(1)(x)
+    #prediction = Lambda(lambda i: tf.floor(i))(x)
+    #prediction = Activation(int)(x)
 
     model = Model(inputs=input, outputs=prediction)
 
+    model.compile(loss='mse', optimizer='nadam', metrics=[rmse, 'mean_squared_error'])
+    model.summary()
     # Fit
     model.fit_generator(generate_dataset(), steps_per_epoch=STEPS_PER_EPOCH,
                         validation_data=generate_dataset(path='sorted_faces/valid', mode='valid'),
