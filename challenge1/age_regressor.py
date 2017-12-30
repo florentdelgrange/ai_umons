@@ -101,10 +101,11 @@ if __name__=='__main__':
                      activation='relu')(x)
         y = MaxPooling2D(pool_size=(2, 2), strides=(2, 2))(y)
         y = Flatten()(y)
+        print(gender_model(input)[0][0])
         if i == 0:
-            y = Lambda(lambda x : (1 - gender_model.predict(input)[0][0]) * x)(y)
+            y = Lambda(lambda x : (1 - gender_model(input)[0][0]) * x)(y)
         if i == 1:
-            y = Lambda(lambda x : gender_model.predict(input)[0][0] * x)(y)
+            y = Lambda(lambda x : gender_model(input)[0][0] * x)(y)
         y = Dense(299, activation='relu')(y)
         subnets[i] = Dropout(0.15)(y)
     x = Concatenate(subnets)
