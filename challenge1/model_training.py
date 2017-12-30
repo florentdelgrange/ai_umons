@@ -34,9 +34,11 @@ from PIL import Image
 import cv2
 from docopt import docopt
 
-EPOCHS = 42
+DATABASE_SIZE = 43390
+EPOCHS = 30
 BATCH_SIZE = 32
-STEPS_PER_EPOCH = 43390 // (10 * BATCH_SIZE)
+STEPS_PER_EPOCH = DATABASE_SIZE // (10 * BATCH_SIZE)
+VALIDATION_STEPS = STEPS_PER_EPOCH // 10
 gender_dict = {'m': 0, 'f' : 1}
 CUSTOM_SAVE_PATH = '/home/florent/Dropbox/Info/ai_umons/challenge1'
 MAT_PATH = 'wiki'
@@ -163,6 +165,7 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
             ) if rotations else None
     args = docopt(__doc__)
     if args['--memmaps_directory']:
+        print("Found memmaps in : {}".format(args[('--memmaps_directory')]))
         while(1):
             if mode == 'train':
                 length = 43390
@@ -173,36 +176,46 @@ def generate_dataset(path='sorted_faces/train', mode='train', rotations=False):
                     Y = np.array(Y_train[i * BATCH_SIZE : (i + 1) * BATCH_SIZE], dtype='uint8')
                     if rotations:
                         X, Y = datagen.flow(x=X, y=Y, batch_size=BATCH_SIZE,
-                                #save_to_dir='sorted_faces/gen'
                                 ).next()
                     yield preprocess_input(X), Y
             elif mode == 'valid':
-                length = 6943
+                #length = 6943
+                length = VALIDATION_STEPS * BATCH_SIZE
                 X_test = np.memmap('{}/testing_images'.format(args['--memmaps_directory']), dtype='uint8', mode='r', shape=(length, 299, 299, 3))
                 Y_test = np.memmap('{}/testing_genders'.format(args['--memmaps_directory']), dtype='uint8', mode='r', shape=(length))
                 for i in range(length // BATCH_SIZE):
                     X = np.array(X_test[i * BATCH_SIZE : (i + 1) * BATCH_SIZE], dtype='uint8')
                     Y = np.array(Y_test[i * BATCH_SIZE : (i + 1) * BATCH_SIZE], dtype='uint8')
-                    if rotations:
-                        X, Y = datagen.flow(x=X, y=Y, batch_size=BATCH_SIZE,
-                                #save_to_dir='sorted_faces/gen'
-                                ).next()
+                    #   if rotations:
+                    #       X, Y = datagen.flow(x=X, y=Y, batch_size=BATCH_SIZE,
+                    #               ).next()
                     yield preprocess_input(X), Y
     else :
         generate_dataset_from_files(path, mode, rotations)
 
 
 def fine_tuning(weights=''):
-    # load json and create model
-    json_file = open('{}/models/robust_xception_gender.json'.format(CUSTOM_SAVE_PATH), 'r')
-    loaded_model_json = json_file.read()
-    json_file.close()
-    model = model_from_json(loaded_model_json)
-    # load weights into new model
-    model.load_weights("{}/models/robust_xception_gender.h5".format(CUSTOM_SAVE_PATH))
+    print("model initialisation (Xception based) for fine tuning...")
+    base_model = Xception(include_top=False, input_shape=(299, 299, 3))
+
+    # let's visualize layer names and layer indices
+    for i, layer in enumerate(base_model.layers):
+       print(i, layer.name)
+
+    # add a global spatial average pooling layer
+    x = base_model.output
+    x = GlobalAveragePooling2D()(x)
+    # let's add two fully-connected layer
+    x = Dense(299, activation='relu')(x)
+    # and a logistic layer ; we have 2 classes
+    predictions = Dense(1, activation='sigmoid')(x)
+
+    # this is the model we will train
+    model = Model(inputs=base_model.input, outputs=predictions)
 
     if weights:
         model.load_weights(weights)
+        print('weights ({}) loaded !'.format(weights))
 
     # We will freeze the bottom N layers
     # and train the remaining top layers.
@@ -232,14 +245,14 @@ def fine_tuning(weights=''):
     if not os.path.exists('{}/weights'.format(CUSTOM_SAVE_PATH)):
         os.makedirs("{}/weights".format(CUSTOM_SAVE_PATH))
 
-    filepath= CUSTOM_SAVE_PATH + "/weights/weights-improvement-{epoch:02d}-{val_acc:.2f}.hdf5"
+    filepath= CUSTOM_SAVE_PATH + "/weights/fine_tuning_weights-{epoch:02d}-{val_acc:.2f}.hdf5"
     checkpoint = ModelCheckpoint(filepath, monitor='val_acc', verbose=1, save_best_only=True, mode='max')
-    tensorboard = TensorBoard(log_dir='{}/logs/{}'.format(CUSTOM_SAVE_PATH, time()))#, histogram_freq=1, write_grads=True, batch_size=BATCH_SIZE)
+    tensorboard = TensorBoard(log_dir='{}/logs/fine_tuning_gender{}'.format(CUSTOM_SAVE_PATH, time()))#, histogram_freq=1, write_grads=True, batch_size=BATCH_SIZE)
 
     # Fit
     model.fit_generator(generate_dataset(rotations=True), steps_per_epoch=STEPS_PER_EPOCH,
                         validation_data=generate_dataset(path='sorted_faces/valid', rotations=True),
-                        validation_steps=15,
+                        validation_steps=VALIDATION_STEPS,
                         epochs=EPOCHS, callbacks=[tensorboard, checkpoint])
     save(model, path=CUSTOM_SAVE_PATH, model_name='fine_tuned_xception_gender')
 
@@ -288,7 +301,7 @@ def main_training(weights=''):
     model.fit_generator(generate_dataset(rotations=True), steps_per_epoch=STEPS_PER_EPOCH,
                         validation_data=generate_dataset(path='sorted_faces/valid',
                                                          mode='valid', rotations=True),
-                        validation_steps=15,
+                        validation_steps=VALIDATION_STEPS,
                         epochs=EPOCHS, callbacks=[tensorboard, checkpoint])
 
     # at this point, the top layers are well trained and we can start fine-tuning
