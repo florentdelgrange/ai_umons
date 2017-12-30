@@ -1,4 +1,4 @@
-from keras.layers import Activation, Dense, Dot, Conv2D, MaxPooling2D, Concatenate, Flatten, GlobalAveragePooling2D, Dropout, Activation, Input, Lambda
+from keras.layers import *
 from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array, load_img
 from time import time
 from keras import backend
@@ -19,14 +19,16 @@ import PIL.Image
 
 
 input_shape = (299, 299, 3)
-
-EPOCHS = 42
-BATCH_SIZE = 21
-STEPS_PER_EPOCH = 9146 // BATCH_SIZE
-CUSTOM_SAVE_PATH = '.'
+DATABASE_SIZE = 43390
+EPOCHS = 1
+BATCH_SIZE = 20
+STEPS_PER_EPOCH = DATABASE_SIZE // (10 * BATCH_SIZE)
+VALIDATION_STEPS = STEPS_PER_EPOCH // 5
+gender_dict = {'m': 0, 'f' : 1}
+CUSTOM_SAVE_PATH = '/home/florent/Dropbox/Info/ai_umons/challenge1'
 
 def preprocess_input(x):
-    x = np.array(x, dtype='float')
+    x = np.array(x, dtype='float32')
     x /= 255.
     x -= 0.5
     x *= 2.
@@ -36,88 +38,88 @@ def rmse(y_true, y_pred):
     return backend.sqrt(backend.mean(backend.square(y_pred - y_true), axis=-1))
 
 def generate_dataset(path='sorted_faces/train', mode='train'):
-    datagen_openu = ImageDataGenerator(
+    datagen = ImageDataGenerator(
             width_shift_range=0.1,
             height_shift_range=0.1,
             zoom_range=0.3,
             fill_mode='nearest'
             )
     while 1:
-        with open('{}/{}_info.txt'.format(path, mode), 'r') as info:
-            batch_step = 0
-            X = np.empty([BATCH_SIZE, 299, 299, 3])
-            Y = np.empty([BATCH_SIZE])
-            for line in info:
-                angle = np.random.uniform(-90, 90)
-                #angle = np.random.randint(-90, 90)
-                img_name, _, age = line.split(' ; ')
-
-                age = eval(age)
-                # If age is not well labelised (None in dataset), it takes the value 255
-                if not age:
-                    age = 255
-                if type(age) == tuple:
-                    age = np.mean(age)
-                if age == 255:
-                    pass
-                else:
-                    img = load_img('{}/all/{}'.format(path, img_name), target_size=(299, 299))#.rotate(angle, resample='1')
-                    #img.show()
-                    x = img_to_array(img)
-                    X[batch_step] = x
-                    Y[batch_step] = age
-                    batch_step += 1
-
-                    if batch_step == BATCH_SIZE:
-                        X, Y = datagen_openu.flow(x=X, y=Y, batch_size=BATCH_SIZE).next()
-                        #PIL.Image.fromarray(np.array(X[0], dtype='uint8')).show()
-                        #print(Y[0])
-                        yield (preprocess_input(X), Y)
-                        batch_step = 0
-                        X = np.empty([BATCH_SIZE, 299, 299, 3])
-                        Y = np.empty([BATCH_SIZE])
+        if mode == 'train':
+            length = 43390
+            X_train = np.memmap('{}/training_images'.format('Dataset'), dtype='uint8', mode='r', shape=(length, 299, 299, 3))
+            Y_train = np.memmap('{}/training_ages'.format('Dataset'), dtype='uint8', mode='r', shape=(length))
+            for i in range(length // BATCH_SIZE):
+                X = np.array(X_train[i * BATCH_SIZE : (i + 1) * BATCH_SIZE], dtype='uint8')
+                Y = np.array(Y_train[i * BATCH_SIZE : (i + 1) * BATCH_SIZE], dtype='uint8')
+                X, Y = datagen.flow(x=X, y=Y, batch_size=BATCH_SIZE,
+                        ).next()
+                yield preprocess_input(X), Y
+        elif mode == 'valid':
+            #length = 6943
+            length = VALIDATION_STEPS * BATCH_SIZE
+            X_test = np.memmap('{}/testing_images'.format('Dataset'), dtype='uint8', mode='r', shape=(length, 299, 299, 3))
+            Y_test = np.memmap('{}/testing_ages'.format('Dataset'), dtype='uint8', mode='r', shape=(length))
+            for i in range(length // BATCH_SIZE):
+                X = np.array(X_test[i * BATCH_SIZE : (i + 1) * BATCH_SIZE], dtype='uint8')
+                Y = np.array(Y_test[i * BATCH_SIZE : (i + 1) * BATCH_SIZE], dtype='uint8')
+                yield preprocess_input(X), Y
 
 if __name__=='__main__':
-    json_file = open('{}/models/xception_gender.json'.format(CUSTOM_SAVE_PATH), 'r')
+    json_file = open('{}/models/fine_tuned_xception_gender.json'.format(CUSTOM_SAVE_PATH), 'r')
     loaded_model_json = json_file.read()
     json_file.close()
     gender_model = model_from_json(loaded_model_json)
     # load weights into new model
-    gender_model.load_weights("{}/models/xception_gender.h5".format(CUSTOM_SAVE_PATH))
+    gender_model.load_weights("{}/models/fine_tuned_xception_gender.h5".format(CUSTOM_SAVE_PATH))
     for layer in gender_model.layers:
         layer.trainable = False
 
     base_model = Xception(include_top=False, input_shape=(299, 299, 3))
-    for layer in base_model.layers[:95]:
+    input = base_model.input
+    for layer in base_model.layers[:85]:
        layer.trainable = False
 
-    # add a global spatial average pooling layer
     x = base_model.layers[95].output
-    #input = Input(shape=(299, 299, 3))
-    input = base_model.input
-    x = Conv2D(16, kernel_size=(7, 7), strides=(1, 1),
-                     activation='relu')(x)#(input)
-    MaxPooling2D(pool_size=(2, 2), strides=(2, 2))(x)
-    x = Conv2D(32, (5, 5), activation='relu')(x)
-    x = MaxPooling2D(pool_size=(2, 2))(x)
 
     subnets = [None] * 2
-    for i in range(2):
-        y = Conv2D(32, kernel_size=(3, 3), strides=(1, 1),
-                     activation='relu')(x)
-        y = MaxPooling2D(pool_size=(2, 2), strides=(2, 2))(y)
-        y = Conv2D(64, kernel_size=(3, 3), strides=(1, 1),
-                     activation='relu')(x)
-        y = MaxPooling2D(pool_size=(2, 2), strides=(2, 2))(y)
-        y = Flatten()(y)
+    for i, gender in enumerate(['male', 'female']):
+        prefix=gender
+        y = x
+        for j in range(2):
+            residual = y
+            y = SeparableConv2D(728, (3, 3), padding='same', use_bias=False, name=prefix + '_1sepconv{}'.format(j))(y)
+            y = BatchNormalization(name=prefix + '_sepconv1_{}_bn'.format(j))(y)
+            y = Activation('relu', name=prefix + '_sepconv2_{}_act'.format(j))(y)
+            y = SeparableConv2D(728, (3, 3), padding='same', use_bias=False, name=prefix + '_2sepconv{}'.format(j))(y)
+            y = BatchNormalization(name=prefix + '_sepconv32_{}_bn'.format(j))(y)
+            y = Activation('relu', name=prefix + '_sepconv4_{}_act'.format(j))(y)
+            y = SeparableConv2D(728, (3, 3), padding='same', use_bias=False, name=prefix + '_3sepconv{}'.format(j))(y)
+            y = BatchNormalization(name=prefix + '_sepconv3_{}_bn'.format(j))(y)
+
+            y = Add()([y, residual])
+
+        y = MaxPooling2D((3, 3), strides=(2, 2), padding='same', name='{}block{}_pool'.format(gender, j))(y)
+        y = SeparableConv2D(1536, (3, 3), padding='same', use_bias=False, name=prefix+'block14_sepconv1')(y)
+        y = BatchNormalization(name=prefix + 'block14_sepconv1_bn')(y)
+        y = Activation('relu', name=prefix+'block14_sepconv1_act')(y)
+        y = SeparableConv2D(2048, (3, 3), padding='same', use_bias=False, name=prefix+'block14_sepconv2')(y)
+        y = BatchNormalization(name=prefix+'block14_sepconv2_bn')(y)
+        y = Activation('relu', name=prefix+'block14_sepconv2_act')(y)
+
+        y = GlobalAveragePooling2D(name=prefix+'_global_average_pooling2D')(y)
         if i == 0:
-            y = Lambda(lambda x : (1 - gender_model(input)) * x)(y)
-            #y = Dot([0, 0])([Lambda(lambda x: 1 - x)(gender_model(input)), y])
+            # Multiply by men probability
+            z = gender_model(input)
+            z = Lambda(lambda x: 1 - x)(z)
+            y = Multiply(name='{}_proba_multiply'.format(gender))([z, y])
         if i == 1:
-            y = Lambda(lambda x : gender_model(input) * x)(y)
-            #y = Dot([0, 0])([gender_model(input), y])
+            # Multiply by female probability
+            z = gender_model(input)
+            y = Multiply(name='{}_proba_multiply'.format(gender))([z, y])
         y = Dense(299, activation='relu')(y)
-        subnets[i] = Dropout(0.15)(y)
+        subnets[i] = Dropout(0.25)(y)
+        subnets[i] = y
     x = Concatenate()(subnets)
     x = Dense(100, activation='relu')(x)
     prediction = Dense(1)(x)
@@ -128,10 +130,14 @@ if __name__=='__main__':
 
     model.compile(loss='mse', optimizer='nadam', metrics=[rmse, 'mean_squared_error'])
     model.summary()
+
+    from keras.utils import plot_model
+    plot_model(model, to_file='age_regressor.png')
+
     # Fit
     model.fit_generator(generate_dataset(), steps_per_epoch=STEPS_PER_EPOCH,
                         validation_data=generate_dataset(path='sorted_faces/valid', mode='valid'),
-                        validation_steps=30,
+                        validation_steps=VALIDATION_STEPS,
                         epochs=EPOCHS)
 
-    save(model, path=CUSTOM_SAVE_PATH, model_name='age_regressor')
+    save(model, path=CUSTOM_SAVE_PATH, model_name='age_regressor_1')
