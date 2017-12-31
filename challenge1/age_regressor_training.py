@@ -1,7 +1,7 @@
 """Train a deep neural network for genre classification, based on Xception
 
 Usage:
-    age_regressor_training.py [--epochs <number_of_epochs>] [--load_model <model_path>] [--shift <i>] [--callbacks] (--output_name <model_name>)
+    age_regressor_training.py [--epochs <number_of_epochs>] [--load_model <model_path>] [--weights <path_to_weights>] [--shift <i>] [--callbacks] (--output_name <model_name>)
     age_regressor_training.py (-h | --help)
 
 Options:
@@ -9,6 +9,7 @@ Options:
 -e --epochs <number_of_epochs>               Number of epochs during training. [default: 10]
 --shift <i>                                  Number of epoch to shift (recall : 1 epoch = 1/10 dataset). [default: 0]
 --load_model <model_path>                    Train a model already saved (with *.h5 extension).
+--weights <path_to_weights>                  Load callbacks weights.
 --callbacks                                  Enable TensorBoard and save max only callbakcs.
 -o --output_name <output_name>               Name of the model that will be saved
 
@@ -176,10 +177,11 @@ if __name__=='__main__':
         json_file.close()
         model = model_from_json(loaded_model_json)
         # load weights into new model
-        model.load_weights(args['--load_model'])
-
-        for layer in model.layers[65:85]:
-            layer.trainable = True
+        if args['--weights']:
+            model.load_weights(args['--weights'])
+            print('weights ({}) loaded !'.format(weights))
+        else:
+            model.load_weights(args['--load_model'])
 
         model.compile(loss='mse', optimizer='nadam', metrics=[rmse, 'mean_squared_error'])
         model.summary()
