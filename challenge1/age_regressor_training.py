@@ -34,7 +34,6 @@ import os
 import PIL.Image
 
 
-
 def preprocess_input(x):
     x = np.array(x, dtype='float32')
     x /= 255.
@@ -153,7 +152,7 @@ def model_initialisation():
 
     # Fit
     model.fit_generator(generate_dataset(), steps_per_epoch=STEPS_PER_EPOCH,
-                        validation_data=generate_dataset(path='sorted_faces/valid', mode='valid'),
+                        validation_data=generate_dataset(mode='valid'),
                         validation_steps=VALIDATION_STEPS,
                         epochs=EPOCHS)
 
@@ -181,19 +180,23 @@ if __name__=='__main__':
 
         model.compile(loss='mse', optimizer='nadam', metrics=[rmse, 'mean_squared_error'])
         model.summary()
+
+        for layer in model.layers[65:85]:
+            layer.trainable = True
+
         callbacks = []
         if args['--callbacks']:
             # Callbacks
             if not os.path.exists('{}/weights'.format(CUSTOM_SAVE_PATH)):
                 os.makedirs("{}/weights".format(CUSTOM_SAVE_PATH))
 
-            filepath= CUSTOM_SAVE_PATH + "/weights/age_regressor_weights-improvement-{epoch:02d}-{val_acc:.2f}.hdf5"
-            checkpoint = ModelCheckpoint(filepath, monitor='val_acc', verbose=1, save_best_only=True, mode='max')
-            tensorboard = TensorBoard(log_dir='{}/logs/gender{}'.format(CUSTOM_SAVE_PATH, time()))#, histogram_freq=1, write_grads=True, batch_size=BATCH_SIZE)
+            filepath= CUSTOM_SAVE_PATH + "/weights/age_regressor_weights-improvement-{epoch:02d}-{val_loss:.4f}.hdf5"
+            checkpoint = ModelCheckpoint(filepath, monitor='val_loss', verbose=1, save_best_only=True, mode='min')
+            tensorboard = TensorBoard(log_dir='{}/logs/age{}'.format(CUSTOM_SAVE_PATH, time()))#, histogram_freq=1, write_grads=True, batch_size=BATCH_SIZE)
             callbacks = [checkpoint, tensorboard]
         # Fit
         model.fit_generator(generate_dataset(), steps_per_epoch=STEPS_PER_EPOCH,
-                            validation_data=generate_dataset(path='sorted_faces/valid', mode='valid'),
+                            validation_data=generate_dataset(mode='valid'),
                             validation_steps=VALIDATION_STEPS,
                             epochs=EPOCHS, callbacks=callbacks)
 
