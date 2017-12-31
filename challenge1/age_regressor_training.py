@@ -178,11 +178,11 @@ if __name__=='__main__':
         # load weights into new model
         model.load_weights(args['--load_model'])
 
-        model.compile(loss='mse', optimizer='nadam', metrics=[rmse, 'mean_squared_error'])
-        model.summary()
-
         for layer in model.layers[65:85]:
             layer.trainable = True
+
+        model.compile(loss='mse', optimizer='nadam', metrics=[rmse, 'mean_squared_error'])
+        model.summary()
 
         callbacks = []
         if args['--callbacks']:
