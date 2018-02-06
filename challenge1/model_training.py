@@ -3,6 +3,7 @@
 Usage:
     model_training.py [--mode=<mode_name>] [--weights <path_to_weights>] [--wiki_shift=<i>]
     model_training.py [--mode=<mode_name>] [--weights <path_to_weights>] [--memmaps_directory <path>]
+    model_training.py (--export_model) (--weights <path_to_weights>) (--out <output_name>)
     model_training.py (-h | --help)
 
 Options:
@@ -11,8 +12,9 @@ Options:
 --mode=<mode_name>                           Choose the training mode (init, main-training, fine-tuning ) [default : init].
 --weights <path_to_weights>                  Load pre-trained weights (from a checkpoint, for example).
 --wiki_shift=<i>                             Data set shift [default: 0]
---memmaps_directory <path>                   Path to mmemaps directory. If this option is specified, the only dataset loaded is from the memmaps.
-
+--memmaps_directory <path>                   Path to mmemaps directory. If this option is specified, the only dataset loaded is from the memmaps. [default: Dataset]
+--export_model                               Export a model from weights. The options weights and output must be specified.
+-o --out <output_name>                    Name of the saved model if the option export_model is specified.
 
 Note : The memmaps have to be named (training|testing)_(images|genders|ages)
 """
@@ -35,12 +37,12 @@ import cv2
 from docopt import docopt
 
 DATABASE_SIZE = 43390
-EPOCHS = 30
-BATCH_SIZE = 32
+EPOCHS = 0
+BATCH_SIZE = 20
 STEPS_PER_EPOCH = DATABASE_SIZE // (10 * BATCH_SIZE)
 VALIDATION_STEPS = STEPS_PER_EPOCH // 10
 gender_dict = {'m': 0, 'f' : 1}
-CUSTOM_SAVE_PATH = '/home/florent/Dropbox/Info/ai_umons/challenge1'
+CUSTOM_SAVE_PATH = '.'
 MAT_PATH = 'wiki'
 
 def load_data(mat_path):
@@ -254,7 +256,7 @@ def fine_tuning(weights=''):
                         validation_data=generate_dataset(path='sorted_faces/valid', rotations=True),
                         validation_steps=VALIDATION_STEPS,
                         epochs=EPOCHS, callbacks=[tensorboard, checkpoint])
-    save(model, path=CUSTOM_SAVE_PATH, model_name='fine_tuned_xception_gender')
+    save(model, path=CUSTOM_SAVE_PATH, model_name='xception_gender')
 
 def main_training(weights=''):
     print("model initialisation (Xception based) ...")
@@ -305,7 +307,7 @@ def main_training(weights=''):
                         epochs=EPOCHS, callbacks=[tensorboard, checkpoint])
 
     # at this point, the top layers are well trained and we can start fine-tuning
-    save(model, path=CUSTOM_SAVE_PATH, model_name='robust_xception_gender')
+    save(model, path=CUSTOM_SAVE_PATH, model_name='xception_gender_main')
 
 def model_initialisation_phase():
     print("model initialisation (Xception based) ...")
@@ -341,15 +343,30 @@ def model_initialisation_phase():
 
     tensorboard = TensorBoard(log_dir='{}/logs/{}'.format(CUSTOM_SAVE_PATH, time()))#, histogram_freq=1, write_grads=True, batch_size=BATCH_SIZE)
 
-    model.fit_generator(generate_dataset(), steps_per_epoch=STEPS_PER_EPOCH, epochs=EPOCHS//2, callbacks=[tensorboard])
+    model.fit_generator(generate_dataset(), steps_per_epoch=STEPS_PER_EPOCH, epochs=10, callbacks=[tensorboard])
     #validation_data=generate_dataset('sorted_faces/valid', 'valid'), validation_steps=200)
 
     # at this point, the top layers are well trained and we can start fine-tuning
-    save(model, CUSTOM_SAVE_PATH)
+    save(model, path=CUSTOM_SAVE_PATH, model_name='xception_gender_init')
 
+def export_from_weights(weights_path, name):
+    print("Export model from weights (Xception based) ...")
+    base_model = Xception(include_top=False, input_shape=(299, 299, 3))
 
-class TooManyArgumentsError(Exception):
-    pass
+    # add a global spatial average pooling layer
+    x = base_model.output
+    x = GlobalAveragePooling2D()(x)
+    # let's add two fully-connected layer
+    x = Dense(299, activation='relu')(x)
+    # and a logistic layer ; we have 2 classes
+    predictions = Dense(1, activation='sigmoid')(x)
+
+    # this is the model we will train
+    model = Model(inputs=base_model.input, outputs=predictions)
+
+    model.load_weights(weights_path)
+    print('weights ({}) loaded !'.format(weights_path))
+    save(model, path=CUSTOM_SAVE_PATH, model_name=name)
 
 
 if __name__ == '__main__':
@@ -362,11 +379,14 @@ if __name__ == '__main__':
     mode = args['--mode']
     weights = args['--weights']
 
-    if mode == 'fine-tuning':
+    if args['--export_model']:
+        export_from_weights(weights, args['--out'])
+    elif mode == 'fine-tuning':
         fine_tuning(weights)
     elif mode == 'main-training':
         main_training(weights)
+        fine_tuning('{}/models/xception_gender_main.h5'.format(CUSTOM_SAVE_PATH))
     else:
-        model_initialisation_phase()
+        # model_initialisation_phase() # deprecated
         main_training()
-        fine_tuning()
+        fine_tuning('{}/models/xception_gender_main.h5'.format(CUSTOM_SAVE_PATH))

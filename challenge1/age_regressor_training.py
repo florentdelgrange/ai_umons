@@ -10,7 +10,7 @@ Options:
 --shift <i>                                  Number of epoch to shift (recall : 1 epoch = 1/10 dataset). [default: 0]
 --load_model <model_path>                    Train a model already saved (with *.h5 extension).
 --weights <path_to_weights>                  Load callbacks weights.
---callbacks                                  Enable TensorBoard and save max only callbakcs.
+--callbacks                                  Enable TensorBoard and save max only callbacks.
 -o --output_name <output_name>               Name of the model that will be saved
 
 Note : You need memmaps database to train this model.
@@ -169,7 +169,7 @@ if __name__=='__main__':
     STEPS_PER_EPOCH = DATABASE_SIZE // (10 * BATCH_SIZE)
     VALIDATION_STEPS = STEPS_PER_EPOCH // 5
     gender_dict = {'m': 0, 'f' : 1}
-    CUSTOM_SAVE_PATH = '/home/florent/Dropbox/Info/ai_umons/challenge1'
+    CUSTOM_SAVE_PATH = '.'
 
     if args['--load_model']:
         json_file = open('{}.json'.format(''.join(args['--load_model'].split('.h5')[:-1])), 'r')
@@ -179,9 +179,11 @@ if __name__=='__main__':
         # load weights into new model
         if args['--weights']:
             model.load_weights(args['--weights'])
-            print('weights ({}) loaded !'.format(weights))
+            print('weights ({}) loaded !'.format(args['--weights']))
         else:
             model.load_weights(args['--load_model'])
+
+        output_name = args['--output_name']
 
         model.compile(loss='mse', optimizer='nadam', metrics=[rmse, 'mean_squared_error'])
         model.summary()
