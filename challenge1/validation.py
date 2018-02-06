@@ -14,6 +14,7 @@ class ArgumentsError(Exception):
 
 
 def preprocess_input(x):
+    x = np.array(x, dtype='float32')
     x /= 255.
     x -= 0.5
     x *= 2.
@@ -32,38 +33,35 @@ if __name__ == '__main__':
 
     model_name = sys.argv[1]
     # load json and create model
-    json_file = open('{}.json'.format(model_name), 'r')
+    json_file = open('models/{}.json'.format(model_name), 'r')
     loaded_model_json = json_file.read()
     json_file.close()
     model = model_from_json(loaded_model_json)
     # load weights into new model
-    model.load_weights("{}.h5".format(model_name))
+    model.load_weights("models/{}.h5".format(model_name))
 
-    predictions = []
-
-    length = file_len('sorted_faces/valid/valid_info.txt')
+    length = 6943
+    predictions = [0] * length
 
     bar = progressbar.ProgressBar(maxval=length, \
         widgets=[progressbar.Bar('=', '[', ']'), ' ', progressbar.Percentage()])
     bar.start()
 
-    with open('sorted_faces/valid/valid_info.txt', 'r') as f:
-        for i, line in enumerate(f):
-            name, gender, age = line.split(' ; ')
-            img_path = 'sorted_faces/valid/all/{}'.format(name)
-            img = image.load_img(img_path, target_size=(299, 299))
-            x = image.img_to_array(img)
-            x = np.expand_dims(x, axis=0)
+    X_test = np.memmap('Dataset/testing_images', dtype='uint8', mode='r', shape=(length, 299, 299, 3))
+    Y_test = np.memmap('Dataset/testing_genders', dtype='uint8', mode='r', shape=(length))
+    for i in range(length):
+        x = X_test[i]
+        x = np.expand_dims(x, axis=0)
+        x = preprocess_input(x)
 
-            x = preprocess_input(x)
+        gender = Y_test[i]
 
-            preds = model.predict(x)
-            # decode the results into a list of tuples (class, description, probability)
-            # (one such list for each sample in the batch)
-            p = preds[0][0]
-            predictions.append((p<0.5 and gender=='m') or (p>=0.5 and gender=='f'))
-            # print('{} : y={} | y_pred={} (F: {:.2f} %)'.format(len(predictions), gender, {True: 'm', False: 'f'}[p<0.5], p * 100))
-            bar.update(i + 1)
+        preds = model.predict(x)
+        # decode the results into a list of tuples (class, description, probability)
+        # (one such list for each sample in the batch)
+        p = preds[0][0]
+        predictions[i] = (p<0.5 and gender==0) or (p>=0.5 and gender==1)
+        bar.update(i + 1)
 
     predictions = np.array(predictions)
     print('Accuracy : {:.2f} %'.format(len(predictions[predictions]) / len(predictions) * 100))
